@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmWallet Rice - Admin Shops</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.25rem; box-shadow: 0 4px 6px rgba(0,0,0,0.2); border: 1px solid #334155; }
+    h1 { color: #22c55e; font-size: 1.75rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1rem; color: #94a3b8; margin-bottom: 0.75rem; font-weight: 600; }
+    .auth-form input { width: 100%; padding: 0.75rem 1rem; margin-bottom: 0.75rem; border: 1px solid #475569; border-radius: 8px; font-size: 1rem; background: #0f172a; color: #e2e8f0; }
+    .auth-form input::placeholder { color: #64748b; }
+    .btn { padding: 0.6rem 1.25rem; border: none; border-radius: 8px; font-size: 0.9rem; cursor: pointer; font-weight: 500; }
+    .btn-primary { background: #22c55e; color: #0f172a; }
+    .btn-primary:hover { background: #16a34a; }
+    .btn-secondary { background: #475569; color: #e2e8f0; }
+    .btn-secondary:hover { background: #64748b; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+    .stat { text-align: center; padding: 1rem; background: #0f172a; border-radius: 8px; border: 1px solid #334155; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #22c55e; }
+    .stat-label { font-size: 0.8rem; color: #94a3b8; margin-top: 0.25rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.65rem 0.5rem; text-align: left; border-bottom: 1px solid #334155; }
+    th { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
+    tr:hover { background: rgba(34, 197, 94, 0.05); }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 500; }
+    .badge-success { background: #14532d; color: #86efac; }
+    .badge-inactive { background: #422006; color: #fcd34d; }
+    .badge-danger { background: #7f1d1d; color: #fca5a5; }
+    .hidden { display: none !important; }
+    .error { color: #f87171; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+    .filters { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+    .filters input, .filters select { padding: 0.5rem 0.75rem; border: 1px solid #475569; border-radius: 6px; background: #0f172a; color: #e2e8f0; font-size: 0.9rem; }
+    .pagination { display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem; flex-wrap: wrap; }
+    .pagination button { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+    .pagination span { font-size: 0.85rem; color: #94a3b8; }
+    .detail-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+    .detail-content { background: #1e293b; border-radius: 12px; padding: 1.5rem; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid #334155; }
+    .detail-content h3 { color: #22c55e; margin-bottom: 1rem; }
+    .detail-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155; font-size: 0.9rem; }
+    .detail-row span:first-child { color: #94a3b8; }
+    .close-btn { float: right; background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 1.25rem; }
+    .close-btn:hover { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="auth-view" class="card">
+      <h1>Admin Shops Dashboard</h1>
+      <p style="color:#94a3b8;margin-bottom:1rem;">Log in with your phone number and password</p>
+      <div id="auth-error" class="error hidden"></div>
+      <form id="auth-form" class="auth-form">
+        <input type="tel" name="phone" placeholder="Phone (e.g. 0555227753)" required>
+        <input type="password" name="password" placeholder="Password" required minlength="6" autocomplete="off">
+        <button type="submit" class="btn btn-primary">Log in</button>
+      </form>
+    </div>
+
+    <div id="dashboard-view" class="hidden">
+      <div class="card">
+        <div class="header">
+          <h1>Shops</h1>
+          <div style="display:flex;gap:0.5rem">
+            <button id="settings-btn" class="btn btn-secondary">Settings</button>
+            <button id="logout-btn" class="btn btn-secondary">Log out</button>
+          </div>
+        </div>
+
+        <div class="stats" id="stats-row">
+          <div class="stat"><div class="stat-value" id="stat-exhibitors">0</div><div class="stat-label">Total Shops</div></div>
+          <div class="stat"><div class="stat-value" id="stat-active">0</div><div class="stat-label">Active</div></div>
+          <div class="stat"><div class="stat-value" id="stat-sales">0</div><div class="stat-label">Rice Sales (GHS)</div></div>
+          <div class="stat"><div class="stat-value" id="stat-orders">0</div><div class="stat-label">Orders</div></div>
+          <div class="stat"><div class="stat-value" id="stat-mech-sales">0</div><div class="stat-label">Mech Sales (GHS)</div></div>
+          <div class="stat"><div class="stat-value" id="stat-mech-commission">0</div><div class="stat-label">Mech Commission 10% (GHS)</div></div>
+          <div class="stat" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;flex-wrap:wrap">
+            <a href="#commission-section" class="btn btn-primary" style="text-decoration:none">Commissions</a>
+            <a href="#products-section" class="btn btn-primary" style="text-decoration:none">Verify Products</a>
+            <a href="#mechanization-section" class="btn btn-primary" style="text-decoration:none">Mechanization</a>
+            <a href="#data-submissions-section" class="btn btn-primary" style="text-decoration:none">Data Submissions</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="commission-section">
+        <div class="header">
+          <h2>Commissions</h2>
+          <button id="refresh-commission-btn" class="btn btn-secondary">Refresh</button>
+        </div>
+        <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Track sales and FarmWallet commission earnings</p>
+        <div id="commission-deposit-box" style="margin-bottom:1rem;padding:1rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:8px;display:none">
+          <p style="font-size:0.85rem;color:#94a3b8;margin-bottom:0.25rem">Deposit commission to:</p>
+          <p style="font-weight:600;font-size:1rem;color:#22c55e"><span id="commission-bank-name">Absa Bank</span> — Account <span id="commission-bank-account">0851116494</span></p>
+        </div>
+        <div class="stats" style="margin-bottom:1rem">
+          <div class="stat"><div class="stat-value" id="commission-total-sales">0</div><div class="stat-label">Total Sales (GHS)</div></div>
+          <div class="stat"><div class="stat-value" id="commission-count">0</div><div class="stat-label">Transactions</div></div>
+          <div class="stat"><div class="stat-value" id="commission-total">0</div><div class="stat-label">Total Commission (GHS)</div></div>
+          <div class="stat"><div class="stat-value" id="commission-mech">0</div><div class="stat-label">Mech Commission 10% (GHS)</div></div>
+        </div>
+        <p style="color:#22c55e;font-size:0.85rem;font-weight:600" id="commission-earnings-label">FarmWallet earnings</p>
+        <h3 style="font-size:0.95rem;margin:1rem 0 0.5rem;color:#94a3b8">Sales breakdown (Rice + Mechanization)</h3>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Type</th><th>Shop / Provider</th><th>Amount</th><th>Commission</th></tr>
+          </thead>
+          <tbody id="commission-sales-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="header">
+          <h2>Admin Users</h2>
+          <button id="add-admin-btn" class="btn btn-primary">Add Admin</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Phone</th><th>Name</th><th>Status</th></tr>
+          </thead>
+          <tbody id="admins-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="products-section">
+        <div class="header">
+          <h2>Products (Verify for Marketplace)</h2>
+          <select id="product-filter">
+            <option value="pending">Pending</option>
+            <option value="verified">Verified</option>
+            <option value="rejected">Rejected</option>
+            <option value="">All</option>
+          </select>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Shop</th><th>Rice</th><th>Size</th><th>Qty</th><th>Price</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="products-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="mechanization-section">
+        <div class="header">
+          <h2>Mechanization Services (10% commission)</h2>
+          <div style="display:flex;gap:0.5rem">
+            <button id="add-mech-transaction-btn" class="btn btn-primary">Record Transaction</button>
+            <button id="add-mech-provider-btn" class="btn btn-primary">Add Provider</button>
+          </div>
+        </div>
+        <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Tractor, plowing, threshing, and other farm equipment services. Pricing is per acre — farmer enters acres, total = price × acres. USSD: *920*73# or *920*73*01# for Provider 01.</p>
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Business Name</th><th>Phone</th><th>Region</th><th>Services</th><th>Status</th><th>Action</th></tr>
+          </thead>
+          <tbody id="mech-providers-tbody"></tbody>
+        </table>
+        <h3 style="font-size:0.95rem;margin:1rem 0 0.5rem;color:#94a3b8">Pending Services (Accept/Reject)</h3>
+        <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.5rem">Tractors and services added by providers need admin approval before they appear on USSD.</p>
+        <table>
+          <thead>
+            <tr><th>Provider</th><th>Service</th><th>Reg #</th><th>Price</th><th>Action</th></tr>
+          </thead>
+          <tbody id="mech-pending-services-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card" id="data-submissions-section">
+        <div class="header">
+          <h2>Data Submissions (Share your info)</h2>
+          <div style="display:flex;gap:0.5rem">
+            <button id="export-data-submissions-btn" class="btn btn-primary">Export CSV</button>
+            <button id="import-data-submissions-btn" class="btn btn-secondary">Import CSV</button>
+          </div>
+        </div>
+        <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">User data from USSD option 5 (Share your info) and manual imports. Import CSV: phone_number, name, region, interest, farm_size_acres.</p>
+        <div class="filters">
+          <input type="date" id="data-submissions-start" placeholder="Start date">
+          <input type="date" id="data-submissions-end" placeholder="End date">
+          <button id="data-submissions-apply" class="btn btn-primary">Apply</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Phone</th><th>Name</th><th>Region</th><th>Interest</th><th>Farm (acres)</th><th>Source</th><th>Date</th></tr>
+          </thead>
+          <tbody id="data-submissions-tbody"></tbody>
+        </table>
+        <div class="pagination" id="data-submissions-pagination"></div>
+      </div>
+
+      <div class="card">
+        <h2>Shop List</h2>
+        <div class="filters">
+          <input type="text" id="search" placeholder="Search name, phone, shop ID" style="min-width:200px">
+          <select id="active-filter"><option value="">All</option><option value="true">Active</option><option value="false">Inactive</option></select>
+          <button id="apply-filters" class="btn btn-primary">Apply</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Shop</th><th>Name</th><th>Phone</th><th>Status</th><th>Actions</th></tr>
+          </thead>
+          <tbody id="exhibitors-tbody"></tbody>
+        </table>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="create-admin-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-create-admin">&times;</button>
+      <h3>Add Admin User</h3>
+      <div id="create-admin-error" class="error hidden"></div>
+      <form id="create-admin-form" class="auth-form" style="margin-top:1rem">
+        <input type="tel" name="phone" placeholder="Phone (e.g. 0555227753)" required>
+        <input type="text" name="name" placeholder="Name (optional)">
+        <input type="password" name="password" placeholder="Password (min 6 chars)" required minlength="6" autocomplete="new-password">
+        <button type="submit" class="btn btn-primary">Create Admin</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="detail-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-detail">&times;</button>
+      <h3 id="detail-shop">Shop Details</h3>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+  <div id="mech-provider-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-mech-provider">&times;</button>
+      <h3>Add Mechanization Provider</h3>
+      <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Enter the provider's business name (e.g. Northern Tractors Ltd).</p>
+      <div id="mech-provider-error" class="error hidden"></div>
+      <form id="mech-provider-form" class="auth-form" style="margin-top:1rem">
+        <input type="text" name="name" placeholder="Business name (required)" required>
+        <input type="tel" name="phone" placeholder="Phone (e.g. 0555227753)" required>
+        <input type="tel" name="momo_number" placeholder="MoMo number (optional)">
+        <input type="text" name="region" placeholder="Region (e.g. Northern, Ashanti)">
+        <button type="submit" class="btn btn-primary">Add Provider</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="mech-transaction-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-mech-transaction">&times;</button>
+      <h3>Record Mechanization Transaction (10% commission)</h3>
+      <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Record a completed tractor service. FarmWallet takes 10% commission.</p>
+      <div id="mech-transaction-error" class="error hidden"></div>
+      <form id="mech-transaction-form" class="auth-form" style="margin-top:1rem">
+        <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:#94a3b8">Provider</label>
+        <select name="provider_id" id="mech-tx-provider" required style="width:100%;padding:0.75rem;margin-bottom:0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px"></select>
+        <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:#94a3b8">Service</label>
+        <select name="service_id" id="mech-tx-service" required style="width:100%;padding:0.75rem;margin-bottom:0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px"></select>
+        <input type="number" name="amount" placeholder="Amount paid (GHS)" required min="0.01" step="0.01">
+        <input type="tel" name="farmer_phone" placeholder="Farmer phone (optional)">
+        <button type="submit" class="btn btn-primary">Record Transaction</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="import-data-submissions-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-import-data-submissions">&times;</button>
+      <h3>Import Data Submissions (CSV)</h3>
+      <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Upload a CSV with columns: phone_number (required), name, region, interest, farm_size_acres. Optional: submission_type, source.</p>
+      <div id="import-data-submissions-error" class="error hidden"></div>
+      <form id="import-data-submissions-form" class="auth-form" style="margin-top:1rem">
+        <input type="file" name="file" accept=".csv" required style="padding:0.5rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px;width:100%">
+        <button type="submit" class="btn btn-primary">Import</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="mech-service-modal" class="detail-modal hidden">
+    <div class="detail-content">
+      <button class="close-btn" id="close-mech-service">&times;</button>
+      <h3>Add Service</h3>
+      <p id="mech-service-provider-name" style="color:#94a3b8;margin-bottom:1rem"></p>
+      <div id="mech-service-error" class="error hidden"></div>
+      <form id="mech-service-form" class="auth-form" style="margin-top:1rem">
+        <select name="service_type" required style="width:100%;padding:0.75rem;margin-bottom:0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px">
+          <option value="tractor">Tractor</option>
+          <option value="plowing">Plowing</option>
+          <option value="threshing">Threshing</option>
+          <option value="harvesting">Harvesting</option>
+          <option value="seed_drill">Seed Drill</option>
+          <option value="irrigation">Irrigation</option>
+          <option value="sprayer">Sprayer</option>
+          <option value="other">Other</option>
+        </select>
+        <input type="number" name="price_per_unit" placeholder="Price (GHS)" required min="0" step="0.01">
+        <select name="unit" style="width:100%;padding:0.75rem;margin-bottom:0.75rem;background:#0f172a;color:#e2e8f0;border:1px solid #475569;border-radius:8px" title="Per acre: farmer enters acres, total = price × acres">
+          <option value="per_acre">Per acre (default)</option>
+          <option value="per_hour">Per hour</option>
+          <option value="per_day">Per day</option>
+          <option value="per_job">Per job</option>
+        </select>
+        <input type="text" name="description" placeholder="Description (optional)">
+        <input type="text" name="tractor_registration_number" placeholder="Tractor registration number (required)" required>
+        <button type="submit" class="btn btn-primary">Add Service</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="detail-modal hidden">
+    <div class="detail-content" style="max-width:520px">
+      <button class="close-btn" id="close-settings">&times;</button>
+      <h3>Settings</h3>
+      <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Configure your FarmWallet Admin connection</p>
+      <form id="settings-form" class="auth-form">
+        <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:#94a3b8">API Base URL</label>
+        <input type="url" id="settings-api-url" name="api_url" placeholder="http://localhost:3000" style="margin-bottom:1rem">
+        <label style="display:block;margin-bottom:0.25rem;font-size:0.85rem;color:#94a3b8">Admin API Key (optional)</label>
+        <input type="password" id="settings-api-key" name="api_key" placeholder="For GET /api/commission" autocomplete="off" style="margin-bottom:0.5rem">
+        <p style="color:#64748b;font-size:0.8rem;margin-bottom:1rem">Required for Commissions page (detailed sales list) when using API key. Get from server's ADMIN_API_KEY env var.</p>
+        <button type="submit" class="btn btn-primary">Save & Reload</button>
+      </form>
+      <p style="color:#64748b;font-size:0.8rem;margin-top:1rem">Note: Changing the API URL or API key will reload the app. Ensure the backend is running at the new address.</p>
+      <hr style="border:none;border-top:1px solid #334155;margin:1.5rem 0">
+      <h3 style="font-size:0.95rem">About</h3>
+      <p style="color:#94a3b8;font-size:0.9rem">FarmWallet Admin — Rice marketplace administration dashboard. Manage shops, track sales, and view commissions.</p>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(s) {
+      if (s == null || s === undefined) return '';
+      const t = String(s);
+      const div = document.createElement('div');
+      div.textContent = t;
+      return div.innerHTML;
+    }
+    function getApiBase() {
+      const url = localStorage.getItem('farmwallet_api_base') || '';
+      return url.replace(/\/$/, '') || '';
+    }
+    function getApiKey() {
+      return localStorage.getItem('farmwallet_admin_api_key') || '';
+    }
+    const API = () => (getApiBase() || window.location.origin || '').replace(/\/$/, '') + '/api/admin';
+    let token = sessionStorage.getItem('admin_token');
+
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    function apiHeaders() {
+      const h = { 'Content-Type': 'application/json' };
+      if (token) h['Authorization'] = 'Bearer ' + token;
+      const key = getApiKey();
+      if (key) h['X-Api-Key'] = key;
+      return h;
+    }
+
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('auth-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: form.phone.value.replace(/\D/g, ''),
+            password: form.password.value,
+          }),
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        token = data.token;
+        sessionStorage.setItem('admin_token', token);
+        hide(document.getElementById('auth-view'));
+        show(document.getElementById('dashboard-view'));
+        loadDashboard();
+        loadCommission();
+        loadAdmins();
+        loadProducts();
+        loadMechanizationProviders();
+        loadPendingMechServices();
+        loadExhibitors();
+        loadDataSubmissions();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    if (token) {
+      hide(document.getElementById('auth-view'));
+      show(document.getElementById('dashboard-view'));
+      loadDashboard();
+      loadCommission();
+      loadAdmins();
+      loadProducts();
+      loadMechanizationProviders();
+      loadPendingMechServices();
+      loadExhibitors();
+      loadDataSubmissions();
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch(API() + '/logout', { method: 'POST', credentials: 'include' });
+      token = null;
+      sessionStorage.removeItem('admin_token');
+      show(document.getElementById('auth-view'));
+      hide(document.getElementById('dashboard-view'));
+    });
+
+    async function loadDashboard() {
+      try {
+        const res = await fetch(API() + '/dashboard', { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) {
+          token = null;
+          sessionStorage.removeItem('admin_token');
+          show(document.getElementById('auth-view'));
+          hide(document.getElementById('dashboard-view'));
+          return;
+        }
+        const data = await res.json();
+        document.getElementById('stat-exhibitors').textContent = data.exhibitors?.total ?? 0;
+        document.getElementById('stat-active').textContent = data.exhibitors?.active ?? 0;
+        document.getElementById('stat-sales').textContent = data.sales?.total_amount ?? '0';
+        document.getElementById('stat-orders').textContent = data.sales?.count ?? 0;
+        document.getElementById('stat-mech-sales').textContent = data.mechanization?.total_amount ?? '0';
+        document.getElementById('stat-mech-commission').textContent = data.mechanization?.total_commission ?? '0';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadAdmins() {
+      try {
+        const res = await fetch(API() + '/users', { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        const tbody = document.getElementById('admins-tbody');
+        tbody.innerHTML = (data.admins || []).map(a => `
+          <tr>
+            <td>${escapeHtml(a.phone || '-')}</td>
+            <td>${escapeHtml(a.name || '-')}</td>
+            <td><span class="badge ${a.is_active ? 'badge-success' : 'badge-inactive'}">${a.is_active ? 'Active' : 'Inactive'}</span></td>
+          </tr>
+        `).join('') || '<tr><td colspan="3">No admin users</td></tr>';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    document.getElementById('add-admin-btn').addEventListener('click', () => {
+      document.getElementById('create-admin-form').reset();
+      document.getElementById('create-admin-error').textContent = '';
+      hide(document.getElementById('create-admin-error'));
+      show(document.getElementById('create-admin-modal'));
+    });
+
+    document.getElementById('close-create-admin').addEventListener('click', () => hide(document.getElementById('create-admin-modal')));
+    document.getElementById('create-admin-modal').addEventListener('click', (e) => { if (e.target.id === 'create-admin-modal') hide(e.target); });
+
+    const RICE_NAMES = { perfumed:'Perfumed', brown:'Brown', parboiled:'Parboiled', jasmine:'Jasmine', basmati:'Basmati', other:'Other' };
+
+    async function loadProducts() {
+      const status = document.getElementById('product-filter').value;
+      const params = new URLSearchParams({ limit: 50 });
+      if (status) params.set('status', status);
+      const tbody = document.getElementById('products-tbody');
+      try {
+        const url = API() + '/inventory?' + params;
+        const res = await fetch(url, { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        if (!res.ok) {
+          const errText = await res.text();
+          tbody.innerHTML = `<tr><td colspan="7" style="color:#f87171">Request failed (${res.status}). ${escapeHtml((errText.slice(0, 100) || res.statusText))}</td></tr>`;
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const items = data.items || data.inventory || [];
+        const badgeClass = (s) => s === 'verified' ? 'badge-success' : s === 'rejected' ? 'badge-danger' : 'badge-inactive';
+        const badgeText = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : 'Pending';
+        tbody.innerHTML = items.map(p => {
+          const status = p.verification_status || 'pending';
+          const actions = `<button class="btn btn-primary" style="padding:0.35rem 0.6rem;font-size:0.8rem" onclick="setProductStatus(${p.id}, 'verified')">Verify</button>
+               <button class="btn btn-danger" style="padding:0.35rem 0.6rem;font-size:0.8rem" onclick="setProductStatus(${p.id}, 'rejected')">Reject</button>`;
+          return `<tr>
+            <td>${escapeHtml(p.shop_id || '-')} (${escapeHtml(p.exhibitor_name || '-')})</td>
+            <td>${RICE_NAMES[p.rice_type] || p.rice_type}</td>
+            <td>${p.bag_size_kg ? p.bag_size_kg + ' kg' : '-'}</td>
+            <td>${p.quantity}</td>
+            <td>GHS ${p.price_per_bag}</td>
+            <td><span class="badge ${badgeClass(status)}">${badgeText(status)}</span></td>
+            <td>${actions}</td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="7">No products</td></tr>';
+      } catch (e) {
+        console.error(e);
+        const msg = e.message || 'Request failed';
+        tbody.innerHTML = `<tr><td colspan="7" style="color:#f87171">Could not load products: ${escapeHtml(msg)}. Ensure backend is running and Settings → API Base URL is correct (e.g. http://localhost:3000). Backend must expose GET /api/admin/inventory.</td></tr>`;
+      }
+    }
+
+    document.getElementById('product-filter').addEventListener('change', loadProducts);
+
+    async function loadMechanizationProviders() {
+      try {
+        const res = await fetch(API() + '/mechanization/providers', { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        const tbody = document.getElementById('mech-providers-tbody');
+        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+        const UNIT = { per_acre:'/acre', per_hour:'/hr', per_day:'/day', per_job:'/job' };
+        tbody.innerHTML = (data.providers || []).map(p => {
+          const svcs = (p.MechanizationServices || []).map(s => {
+            const reg = s.tractor_registration_number ? ` [${s.tractor_registration_number}]` : '';
+            return `${SVC[s.service_type] || s.service_type}${reg} GHS ${s.price_per_unit}${UNIT[s.unit] || ''}`;
+          }).join(', ') || '-';
+          const code = p.provider_code || '-';
+          const shortcode = code !== '-' ? `*920*73*${code}#` : '-';
+          return `<tr><td><code title="${escapeHtml(shortcode)}">${escapeHtml(code)}</code></td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.phone)}</td><td>${escapeHtml(p.region || '-')}</td><td>${escapeHtml(svcs)}</td><td><span class="badge ${p.is_active ? 'badge-success' : 'badge-inactive'}">${p.is_active ? 'Active' : 'Inactive'}</span></td><td><button class="btn btn-primary mech-add-service" style="padding:0.3rem 0.6rem;font-size:0.8rem" data-id="${p.id}" data-name="${escapeHtml(p.name || '')}">Add Service</button></td></tr>`;
+        }).join('') || '<tr><td colspan="7">No mechanization providers. Click Add Provider.</td></tr>';
+      } catch (e) { console.error(e); }
+    }
+
+    async function loadPendingMechServices() {
+      try {
+        const res = await fetch(API() + '/mechanization/services?status=pending', { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        const tbody = document.getElementById('mech-pending-services-tbody');
+        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+        const UNIT = { per_acre:'/acre', per_hour:'/hr', per_day:'/day', per_job:'/job' };
+        tbody.innerHTML = (data.services || []).map(s => {
+          const p = s.MechanizationProvider || {};
+          const unit = UNIT[s.unit] || '';
+          return `<tr><td>${escapeHtml(p.name || '-')} (${escapeHtml(p.provider_code || '')})</td><td>${escapeHtml(SVC[s.service_type] || s.service_type)}</td><td>${escapeHtml(s.tractor_registration_number || '-')}</td><td>GHS ${s.price_per_unit}${unit}</td><td><button class="btn btn-primary" style="padding:0.3rem 0.6rem;font-size:0.8rem" onclick="setMechServiceStatus(${s.id}, 'verified')">Accept</button> <button class="btn btn-danger" style="padding:0.3rem 0.6rem;font-size:0.8rem" onclick="setMechServiceStatus(${s.id}, 'rejected')">Reject</button></td></tr>`;
+        }).join('') || '<tr><td colspan="5">No pending services</td></tr>';
+      } catch (e) { console.error(e); }
+    }
+
+    let dataSubmissionsPage = 1;
+    const dataSubmissionsLimit = 50;
+
+    async function loadDataSubmissions() {
+      const params = new URLSearchParams({ page: dataSubmissionsPage, limit: dataSubmissionsLimit });
+      const start = document.getElementById('data-submissions-start')?.value;
+      const end = document.getElementById('data-submissions-end')?.value;
+      if (start) params.set('start', start);
+      if (end) params.set('end', end);
+      try {
+        const res = await fetch(API() + '/data-submissions?' + params, { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        const tbody = document.getElementById('data-submissions-tbody');
+        const subs = data.submissions || [];
+        tbody.innerHTML = subs.map(s => {
+          const d = s.data || {};
+          const date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '-';
+          return `<tr>
+            <td>${escapeHtml(s.phone_number || '-')}</td>
+            <td>${escapeHtml(d.name || '-')}</td>
+            <td>${escapeHtml(d.region || '-')}</td>
+            <td>${escapeHtml(d.interest || '-')}</td>
+            <td>${escapeHtml(d.farm_size_acres || '-')}</td>
+            <td>${escapeHtml(s.source || '-')}</td>
+            <td>${escapeHtml(date)}</td>
+          </tr>`;
+        }).join('') || '<tr><td colspan="7">No data submissions</td></tr>';
+        const total = data.count || subs.length;
+        const totalPages = Math.max(1, Math.ceil(total / dataSubmissionsLimit));
+        const pagEl = document.getElementById('data-submissions-pagination');
+        pagEl.innerHTML = `
+          <span>Page ${dataSubmissionsPage} of ${totalPages} (${total} total)</span>
+          <button class="btn btn-secondary" ${dataSubmissionsPage <= 1 ? 'disabled' : ''} onclick="dataSubmissionsPage--; loadDataSubmissions();">Prev</button>
+          <button class="btn btn-secondary" ${dataSubmissionsPage >= totalPages ? 'disabled' : ''} onclick="dataSubmissionsPage++; loadDataSubmissions();">Next</button>
+        `;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('data-submissions-tbody').innerHTML = '<tr><td colspan="7">Error loading data submissions</td></tr>';
+      }
+    }
+
+    document.getElementById('export-data-submissions-btn').addEventListener('click', async () => {
+      const params = new URLSearchParams({ format: 'csv' });
+      const start = document.getElementById('data-submissions-start')?.value;
+      const end = document.getElementById('data-submissions-end')?.value;
+      if (start) params.set('start', start);
+      if (end) params.set('end', end);
+      try {
+        const res = await fetch(API() + '/data-submissions?' + params, { headers: apiHeaders(), credentials: 'include' });
+        if (!res.ok) throw new Error('Export failed');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'data-submissions-' + new Date().toISOString().slice(0, 10) + '.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert(e.message || 'Export failed');
+      }
+    });
+
+    document.getElementById('import-data-submissions-btn').addEventListener('click', () => {
+      document.getElementById('import-data-submissions-error').textContent = '';
+      hide(document.getElementById('import-data-submissions-error'));
+      document.getElementById('import-data-submissions-form').reset();
+      show(document.getElementById('import-data-submissions-modal'));
+    });
+
+    document.getElementById('close-import-data-submissions').addEventListener('click', () => hide(document.getElementById('import-data-submissions-modal')));
+    document.getElementById('import-data-submissions-modal').addEventListener('click', (e) => { if (e.target.id === 'import-data-submissions-modal') hide(e.target); });
+    document.getElementById('import-data-submissions-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fileInput = document.querySelector('#import-data-submissions-form input[type="file"]');
+      const err = document.getElementById('import-data-submissions-error');
+      err.textContent = '';
+      hide(err);
+      if (!fileInput?.files?.length) {
+        err.textContent = 'Please select a CSV file';
+        show(err);
+        return;
+      }
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      const headers = {};
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const key = getApiKey();
+      if (key) headers['X-Api-Key'] = key;
+      if (Object.keys(headers).length === 0) {
+        err.textContent = 'Not logged in. Log in or set Admin API Key in Settings.';
+        show(err);
+        return;
+      }
+      try {
+        const res = await fetch(API() + '/data-submissions/import', {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          body: formData,
+        });
+        let data;
+        try {
+          data = await res.json();
+        } catch (_) {
+          throw new Error(res.status === 401 ? 'Unauthorized. Please log in again.' : `Server error (${res.status}). Check backend is running.`);
+        }
+        if (!res.ok) throw new Error(data.error || `Import failed (${res.status})`);
+        hide(document.getElementById('import-data-submissions-modal'));
+        alert(data.message || `Imported ${data.imported} row(s)`);
+        loadDataSubmissions();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    document.getElementById('data-submissions-apply').addEventListener('click', () => {
+      dataSubmissionsPage = 1;
+      loadDataSubmissions();
+    });
+
+    async function setMechServiceStatus(id, verification_status) {
+      try {
+        const res = await fetch(API() + '/mechanization/services/' + id, {
+          method: 'PATCH',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({ verification_status }),
+        });
+        if (res.ok) {
+          loadMechanizationProviders();
+          loadPendingMechServices();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to update status');
+        }
+      } catch (e) { console.error(e); alert('Request failed'); }
+    }
+
+    document.getElementById('add-mech-transaction-btn').addEventListener('click', async () => {
+      document.getElementById('mech-transaction-error').textContent = '';
+      hide(document.getElementById('mech-transaction-error'));
+      document.getElementById('mech-transaction-form').reset();
+      try {
+        const res = await fetch(API() + '/mechanization/providers?limit=100', { headers: apiHeaders(), credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load providers');
+        const data = await res.json();
+        const provSelect = document.getElementById('mech-tx-provider');
+        provSelect.innerHTML = '<option value="">Select provider</option>' + (data.providers || []).map(p => `<option value="${p.id}">${escapeHtml(p.name || 'Provider')}${p.region ? ' — ' + escapeHtml(p.region) : ''}</option>`).join('');
+        document.getElementById('mech-tx-service').innerHTML = '<option value="">Select provider first</option>';
+        show(document.getElementById('mech-transaction-modal'));
+      } catch (e) {
+        document.getElementById('mech-transaction-error').textContent = e.message || 'Failed to load';
+        show(document.getElementById('mech-transaction-error'));
+      }
+    });
+
+    document.getElementById('mech-tx-provider').addEventListener('change', async function() {
+      const pid = this.value;
+      const svcSelect = document.getElementById('mech-tx-service');
+      if (!pid) { svcSelect.innerHTML = '<option value="">Select provider first</option>'; return; }
+      try {
+        const res = await fetch(API() + '/mechanization/providers/' + pid, { headers: apiHeaders(), credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load services');
+        const p = await res.json();
+        const svcs = p.MechanizationServices || [];
+        svcSelect.innerHTML = '<option value="">Select service</option>' + svcs.map(s => `<option value="${s.id}">${escapeHtml(s.service_type)} [${escapeHtml(s.tractor_registration_number)}] GHS ${s.price_per_unit}/${s.unit || 'acre'}</option>`).join('');
+      } catch (e) {
+        svcSelect.innerHTML = '<option value="">Error loading services</option>';
+      }
+    });
+
+    document.getElementById('close-mech-transaction').addEventListener('click', () => hide(document.getElementById('mech-transaction-modal')));
+    document.getElementById('mech-transaction-modal').addEventListener('click', (e) => { if (e.target.id === 'mech-transaction-modal') hide(e.target); });
+    document.getElementById('mech-transaction-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('mech-transaction-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/mechanization/transactions', {
+          method: 'POST',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({
+            provider_id: parseInt(form.provider_id.value, 10),
+            service_id: parseInt(form.service_id.value, 10),
+            amount: parseFloat(form.amount.value),
+            farmer_phone: form.farmer_phone?.value?.trim() || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to record transaction');
+        hide(document.getElementById('mech-transaction-modal'));
+        loadDashboard();
+        loadCommission();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    document.getElementById('add-mech-provider-btn').addEventListener('click', () => {
+      document.getElementById('mech-provider-error').textContent = '';
+      hide(document.getElementById('mech-provider-error'));
+      document.getElementById('mech-provider-form').reset();
+      show(document.getElementById('mech-provider-modal'));
+    });
+    document.getElementById('close-mech-provider').addEventListener('click', () => hide(document.getElementById('mech-provider-modal')));
+    document.getElementById('mech-provider-modal').addEventListener('click', (e) => { if (e.target.id === 'mech-provider-modal') hide(e.target); });
+    document.getElementById('mech-provider-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('mech-provider-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/mechanization/providers', {
+          method: 'POST',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({
+            name: form.name.value.trim(),
+            phone: form.phone.value.replace(/\D/g, ''),
+            momo_number: form.momo_number.value.trim() || undefined,
+            region: form.region.value.trim() || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add provider');
+        hide(document.getElementById('mech-provider-modal'));
+        loadMechanizationProviders();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    let mechServiceProviderId = null;
+    document.getElementById('mech-providers-tbody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.mech-add-service');
+      if (!btn) return;
+      mechServiceProviderId = parseInt(btn.dataset.id, 10);
+      document.getElementById('mech-service-provider-name').textContent = 'Provider: ' + (btn.dataset.name || '');
+      document.getElementById('mech-service-form').reset();
+      document.getElementById('mech-service-error').textContent = '';
+      hide(document.getElementById('mech-service-error'));
+      show(document.getElementById('mech-service-modal'));
+    });
+    document.getElementById('close-mech-service').addEventListener('click', () => hide(document.getElementById('mech-service-modal')));
+    document.getElementById('mech-service-modal').addEventListener('click', (e) => { if (e.target.id === 'mech-service-modal') hide(e.target); });
+    document.getElementById('mech-service-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!mechServiceProviderId) return;
+      const form = e.target;
+      const err = document.getElementById('mech-service-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/mechanization/providers/' + mechServiceProviderId + '/services', {
+          method: 'POST',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({
+            service_type: form.service_type.value,
+            price_per_unit: parseFloat(form.price_per_unit.value),
+            unit: form.unit.value,
+            description: form.description.value.trim() || undefined,
+            tractor_registration_number: form.tractor_registration_number?.value?.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add service');
+        hide(document.getElementById('mech-service-modal'));
+        loadMechanizationProviders();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    document.getElementById('refresh-commission-btn').addEventListener('click', loadCommission);
+
+    async function loadCommission() {
+      try {
+        const res = await fetch(API() + '/commission', { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) return;
+        const data = await res.json();
+        document.getElementById('commission-total-sales').textContent = data.total_sales ?? '0';
+        document.getElementById('commission-count').textContent = data.count ?? 0;
+        document.getElementById('commission-total').textContent = data.total_commission ?? '0';
+        document.getElementById('commission-mech').textContent = data.mechanization?.commission ?? '0';
+        const dep = data.commission_deposit;
+        if (dep && (dep.bank_name || dep.account_number)) {
+          document.getElementById('commission-bank-name').textContent = dep.bank_name || '—';
+          document.getElementById('commission-bank-account').textContent = dep.account_number || '—';
+          document.getElementById('commission-deposit-box').style.display = 'block';
+        }
+        const tbody = document.getElementById('commission-sales-tbody');
+        const sales = (data.sales || []).map(s => ({ ...s, type: 'Rice' }));
+        const mech = (data.mechanization_transactions || []).map(m => ({ ...m, type: 'Mech' }));
+        const all = [...sales, ...mech].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        tbody.innerHTML = all.map(s => {
+          const d = new Date(s.created_at).toLocaleDateString();
+          const shop = s.type === 'Rice' ? `${s.shop || '-'} (${s.shop_id || '-'})` : `${s.provider || '-'} [${s.tractor_registration_number || '-'}]`;
+          return `<tr><td>${d}</td><td><span class="badge ${s.type === 'Mech' ? 'badge-inactive' : 'badge-success'}">${s.type}</span></td><td>${escapeHtml(shop)}</td><td>GHS ${Number(s.amount || 0).toFixed(2)}</td><td>GHS ${Number(s.commission || 0).toFixed(2)}</td></tr>`;
+        }).join('') || '<tr><td colspan="5">No transactions yet</td></tr>';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function setProductStatus(id, verification_status) {
+      try {
+        const res = await fetch(API() + '/inventory/' + id, {
+          method: 'PATCH',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({ verification_status }),
+        });
+        if (res.ok) {
+          loadProducts();
+          const detailModal = document.getElementById('detail-modal');
+          if (!detailModal.classList.contains('hidden')) loadExhibitors();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to update status');
+        }
+      } catch (e) { console.error(e); alert('Request failed'); }
+    }
+
+    async function setProductStatusThenRefresh(invId, verification_status, exhibitorId) {
+      try {
+        const res = await fetch(API() + '/inventory/' + invId, {
+          method: 'PATCH',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({ verification_status }),
+        });
+        if (res.ok) {
+          loadProducts();
+          viewExhibitor(exhibitorId);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to update status');
+        }
+      } catch (e) { console.error(e); alert('Request failed'); }
+    }
+
+    document.getElementById('create-admin-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('create-admin-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/users', {
+          method: 'POST',
+          headers: apiHeaders(),
+          credentials: 'include',
+          body: JSON.stringify({
+            phone: form.phone.value.replace(/\D/g, ''),
+            name: form.name.value.trim() || undefined,
+            password: form.password.value,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create admin');
+        hide(document.getElementById('create-admin-modal'));
+        loadAdmins();
+      } catch (ex) {
+        err.textContent = ex.message;
+        show(err);
+      }
+    });
+
+    let currentPage = 1;
+    const limit = 15;
+
+    async function loadExhibitors() {
+      const search = document.getElementById('search').value;
+      const active = document.getElementById('active-filter').value;
+      const params = new URLSearchParams({ page: currentPage, limit });
+      if (search) params.set('search', search);
+      if (active) params.set('active', active);
+
+      try {
+        const res = await fetch(API() + '/exhibitors?' + params, { headers: apiHeaders(), credentials: 'include' });
+        if (res.status === 401) {
+          token = null;
+          sessionStorage.removeItem('admin_token');
+          show(document.getElementById('auth-view'));
+          hide(document.getElementById('dashboard-view'));
+          return;
+        }
+        const data = await res.json();
+        const tbody = document.getElementById('exhibitors-tbody');
+        tbody.innerHTML = (data.exhibitors || []).map(e => `
+          <tr>
+            <td><strong>${escapeHtml(e.shop_id || '-')}</strong></td>
+            <td>${escapeHtml(e.name || '-')}</td>
+            <td>${escapeHtml(e.phone || '-')}</td>
+            <td><span class="badge ${e.is_active ? 'badge-success' : 'badge-inactive'}">${e.is_active ? 'Active' : 'Inactive'}</span></td>
+            <td><button class="btn btn-secondary" style="padding:0.35rem 0.6rem;font-size:0.8rem" onclick="viewExhibitor(${e.id})">View</button></td>
+          </tr>
+        `).join('') || '<tr><td colspan="5">No shops found</td></tr>';
+
+        const pag = data.pagination || {};
+        const totalPages = Math.ceil((pag.total || 0) / (pag.limit || limit));
+        const pagEl = document.getElementById('pagination');
+        pagEl.innerHTML = `
+          <span>Page ${pag.page || 1} of ${totalPages || 1} (${pag.total || 0} total)</span>
+          <button class="btn btn-secondary" ${currentPage <= 1 ? 'disabled' : ''} onclick="goPage(${currentPage - 1})">Prev</button>
+          <button class="btn btn-secondary" ${currentPage >= totalPages ? 'disabled' : ''} onclick="goPage(${currentPage + 1})">Next</button>
+        `;
+      } catch (e) {
+        console.error(e);
+        document.getElementById('exhibitors-tbody').innerHTML = '<tr><td colspan="5">Error loading shops</td></tr>';
+      }
+    }
+
+    function goPage(p) {
+      if (p < 1) return;
+      currentPage = p;
+      loadExhibitors();
+    }
+
+    async function viewExhibitor(id) {
+      try {
+        const res = await fetch(API() + '/exhibitors/' + id, { headers: apiHeaders(), credentials: 'include' });
+        if (!res.ok) return;
+        const e = await res.json();
+        const summary = e.sales_summary || {};
+        const inv = e.ExhibitorInventories || [];
+        const invRows = inv.map(i => {
+          const status = i.verification_status || 'pending';
+          const badge = status === 'verified' ? 'badge-success' : status === 'rejected' ? 'badge-danger' : 'badge-inactive';
+          const actions = `<button class="btn btn-primary" style="padding:0.25rem 0.5rem;font-size:0.75rem" onclick="setProductStatusThenRefresh(${i.id}, 'verified', ${id})">Verify</button>
+               <button class="btn btn-danger" style="padding:0.25rem 0.5rem;font-size:0.75rem" onclick="setProductStatusThenRefresh(${i.id}, 'rejected', ${id})">Reject</button>`;
+          return `<tr><td>${RICE_NAMES[i.rice_type] || i.rice_type}</td><td>${i.bag_size_kg ? i.bag_size_kg + ' kg' : '-'}</td><td>${i.quantity}</td><td>GHS ${i.price_per_bag}</td><td><span class="badge ${badge}">${status}</span></td><td>${actions}</td></tr>`;
+        }).join('') || '<tr><td colspan="6">No inventory</td></tr>';
+        document.getElementById('detail-shop').textContent = e.name + ' (Shop ' + (e.shop_id || '-') + ')';
+        document.getElementById('detail-body').innerHTML = `
+          <div class="detail-row"><span>Phone</span><span>${escapeHtml(e.phone || '-')}</span></div>
+          <div class="detail-row"><span>MoMo</span><span>${escapeHtml(e.momo_number || '-')} (${escapeHtml(e.momo_provider || '-')})</span></div>
+          <div class="detail-row"><span>Status</span><span class="badge ${e.is_active ? 'badge-success' : 'badge-inactive'}">${e.is_active ? 'Active' : 'Inactive'}</span></div>
+          <div class="detail-row"><span>Total Sales</span><span>GHS ${Number(summary.total_sales || 0).toFixed(2)}</span></div>
+          <div class="detail-row"><span>Orders</span><span>${summary.sale_count || 0}</span></div>
+          <div class="detail-row"><span>Commission</span><span>GHS ${Number(summary.total_commission || 0).toFixed(2)}</span></div>
+          <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem">Inventory</h3>
+          <table style="width:100%;margin-top:0.5rem"><thead><tr><th>Rice</th><th>Size</th><th>Qty</th><th>Price</th><th>Status</th><th>Action</th></tr></thead><tbody>${invRows}</tbody></table>
+        `;
+        show(document.getElementById('detail-modal'));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    document.getElementById('close-detail').addEventListener('click', () => hide(document.getElementById('detail-modal')));
+    document.getElementById('detail-modal').addEventListener('click', (e) => { if (e.target.id === 'detail-modal') hide(e.target); });
+
+    document.getElementById('settings-btn').addEventListener('click', () => {
+      document.getElementById('settings-api-url').value = getApiBase() || 'http://localhost:3000';
+      document.getElementById('settings-api-key').value = getApiKey();
+      show(document.getElementById('settings-modal'));
+    });
+    document.getElementById('close-settings').addEventListener('click', () => hide(document.getElementById('settings-modal')));
+    document.getElementById('settings-modal').addEventListener('click', (e) => { if (e.target.id === 'settings-modal') hide(e.target); });
+    document.getElementById('settings-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const base = document.getElementById('settings-api-url').value.trim().replace(/\/$/, '');
+      const key = document.getElementById('settings-api-key').value.trim();
+      localStorage.setItem('farmwallet_api_base', base || '');
+      localStorage.setItem('farmwallet_admin_api_key', key || '');
+      hide(document.getElementById('settings-modal'));
+      location.reload();
+    });
+    document.getElementById('apply-filters').addEventListener('click', () => { currentPage = 1; loadExhibitors(); });
+  </script>
+</body>
+</html>

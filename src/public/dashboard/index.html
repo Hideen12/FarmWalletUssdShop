@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmWallet Rice - Shop Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; padding: 1rem; min-height: 100vh; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { color: #1a5f2a; font-size: 1.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1rem; color: #333; margin-bottom: 0.75rem; }
+    .login-form input { width: 100%; padding: 0.75rem; margin-bottom: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+    .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    .btn-primary { background: #1a5f2a; color: #fff; }
+    .btn-secondary { background: #eee; color: #333; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    .stat { text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #1a5f2a; }
+    .stat-label { font-size: 0.85rem; color: #666; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #eee; }
+    th { font-size: 0.8rem; color: #666; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-failed { background: #f8d7da; color: #721c24; }
+    .hidden { display: none !important; }
+    .error { color: #c00; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .inventory-list { list-style: none; }
+    .inventory-list li { padding: 0.5rem 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="login-view" class="card">
+      <h1>Shop Dashboard</h1>
+      <p style="color:#666;margin-bottom:1rem;">Log in with your phone and 4-digit PIN (set via USSD)</p>
+      <div id="login-error" class="error hidden"></div>
+      <form id="login-form">
+        <input type="tel" name="phone" placeholder="Phone (e.g. 0555227753)" required>
+        <input type="password" name="pin" placeholder="4-digit PIN" maxlength="4" pattern="\d{4}" inputmode="numeric" required>
+        <button type="submit" class="btn btn-primary">Log in</button>
+      </form>
+      <p style="color:#64748b;font-size:0.85rem;margin-top:1rem;border-top:1px solid #eee;padding-top:1rem">
+        <strong>First time?</strong> Register via USSD <code>*920*72#</code> (option 1) or run: <code>npm run register-exhibitor</code>
+      </p>
+      <button type="button" id="settings-btn" class="btn btn-secondary" style="margin-top:0.5rem;font-size:0.85rem">Settings (API URL)</button>
+    </div>
+
+    <div id="dashboard-view" class="hidden">
+      <div class="card">
+        <div class="header">
+          <h1 id="shop-name">Shop</h1>
+          <button id="logout-btn" class="btn btn-secondary">Log out</button>
+        </div>
+        <p style="color:#666;">Shop ID: <strong id="shop-id"></strong></p>
+      </div>
+
+      <div class="card">
+        <h2>Sales Summary</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value" id="total-sales">0</div>
+            <div class="stat-label">Total Sales (GHS)</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="sale-count">0</div>
+            <div class="stat-label">Orders</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="header">
+          <h2>Inventory</h2>
+          <button id="add-product-btn" class="btn btn-primary">Add Product</button>
+        </div>
+        <div id="add-product-form" class="hidden" style="margin-bottom:1rem;padding:1rem;background:#f8f9fa;border-radius:8px;">
+          <h3 style="font-size:1rem;margin-bottom:0.75rem;">Add new rice product</h3>
+          <div id="add-product-error" class="error hidden"></div>
+          <form id="product-form">
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Rice type</label>
+              <select name="rice_type" required style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+                <option value="perfumed">Perfumed</option>
+                <option value="brown">Brown</option>
+                <option value="parboiled">Parboiled</option>
+                <option value="jasmine">Jasmine</option>
+                <option value="basmati">Basmati</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Bag size (kg)</label>
+              <select name="bag_size_kg" required style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+                <option value="5">5 kg</option>
+                <option value="25">25 kg</option>
+                <option value="50" selected>50 kg</option>
+                <option value="100">100 kg</option>
+              </select>
+            </div>
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Quantity (bags)</label>
+              <input type="number" name="quantity" min="1" required placeholder="e.g. 50" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <div style="margin-bottom:0.75rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Price per bag (GHS)</label>
+              <input type="number" name="price_per_bag" min="0.01" step="0.01" required placeholder="e.g. 120" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <button type="submit" class="btn btn-primary">Add Product</button>
+            <button type="button" id="cancel-add-btn" class="btn btn-secondary" style="margin-left:0.5rem;">Cancel</button>
+          </form>
+        </div>
+        <ul id="inventory-list" class="inventory-list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Recent Sales</h2>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Rice</th><th>Qty</th><th>Amount</th><th>Status</th></tr>
+          </thead>
+          <tbody id="sales-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="detail-modal hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem">
+    <div class="card" style="max-width:400px;width:100%">
+      <h2>Settings</h2>
+      <p style="color:#666;font-size:0.9rem;margin-bottom:1rem">API Base URL (if dashboard is on a different domain)</p>
+      <form id="settings-form">
+        <input type="url" id="settings-api-url" placeholder="http://localhost:3000" style="width:100%;padding:0.75rem;margin-bottom:0.75rem;border:1px solid #ddd;border-radius:8px">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="button" id="close-settings" class="btn btn-secondary" style="margin-left:0.5rem">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(s) {
+      if (s == null || s === undefined) return '';
+      const t = String(s);
+      const div = document.createElement('div');
+      div.textContent = t;
+      return div.innerHTML;
+    }
+    function getApiBase() {
+      const url = localStorage.getItem('farmwallet_shop_api_base') || '';
+      return url.replace(/\/$/, '') || '';
+    }
+    const API = () => (getApiBase() || window.location.origin || '').replace(/\/$/, '') + '/api/exhibitor';
+    let token = null;
+
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('login-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API() + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: form.phone.value.replace(/\D/g, ''),
+            pin: form.pin.value,
+          }),
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        token = data.token;
+        hide(document.getElementById('login-view'));
+        show(document.getElementById('dashboard-view'));
+        loadDashboard();
+      } catch (e) {
+        err.textContent = e.message;
+        show(err);
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch(API() + '/logout', { method: 'POST', credentials: 'include' });
+      token = null;
+      show(document.getElementById('login-view'));
+      hide(document.getElementById('dashboard-view'));
+    });
+
+    async function loadDashboard() {
+      const opts = { credentials: 'include' };
+      if (token) opts.headers = { Authorization: 'Bearer ' + token };
+      const res = await fetch(API() + '/dashboard', opts);
+      if (res.status === 401) {
+        show(document.getElementById('login-view'));
+        hide(document.getElementById('dashboard-view'));
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) return console.error(data);
+
+      document.getElementById('shop-name').textContent = data.exhibitor.name;
+      document.getElementById('shop-id').textContent = data.exhibitor.shop_id;
+      document.getElementById('total-sales').textContent = data.stats.total_sales;
+      document.getElementById('sale-count').textContent = data.stats.sale_count;
+
+      const RICE = { perfumed:'Perfumed', brown:'Brown', parboiled:'Parboiled', jasmine:'Jasmine', basmati:'Basmati', other:'Other' };
+      const inv = document.getElementById('inventory-list');
+      inv.innerHTML = (data.exhibitor.ExhibitorInventories || []).map(i => {
+        const status = i.verification_status || 'pending';
+        const statusText = status === 'verified' ? '✓' : status === 'rejected' ? '✗' : '…';
+        const sizeInfo = i.bag_size_kg ? ` ${i.bag_size_kg}kg` : '';
+        return `<li><span>${escapeHtml(RICE[i.rice_type] || i.rice_type)}${escapeHtml(sizeInfo)}</span><span>${escapeHtml(i.quantity)} bags @ GHS ${escapeHtml(i.price_per_bag)} <small>(${escapeHtml(statusText)})</small></span></li>`;
+      }).join('') || '<li>No inventory</li>';
+
+      const tbody = document.getElementById('sales-tbody');
+      tbody.innerHTML = (data.recent_sales || []).map(s => {
+        const d = new Date(s.created_at).toLocaleDateString();
+        const status = s.momo_status === 'completed' ? 'badge-success' : s.momo_status === 'failed' ? 'badge-failed' : 'badge-pending';
+        return `<tr><td>${d}</td><td>${escapeHtml(RICE[s.rice_type] || s.rice_type)}</td><td>${escapeHtml(s.quantity)}</td><td>GHS ${escapeHtml(s.amount)}</td><td><span class="badge ${status}">${escapeHtml(s.momo_status)}</span></td></tr>`;
+      }).join('') || '<tr><td colspan="5">No sales yet</td></tr>';
+    }
+
+    document.getElementById('settings-btn').addEventListener('click', () => {
+      document.getElementById('settings-api-url').value = getApiBase() || window.location.origin;
+      document.getElementById('settings-modal').classList.remove('hidden');
+    });
+    document.getElementById('close-settings').addEventListener('click', () => {
+      document.getElementById('settings-modal').classList.add('hidden');
+    });
+    document.getElementById('settings-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const base = document.getElementById('settings-api-url').value.trim().replace(/\/$/, '');
+      localStorage.setItem('farmwallet_shop_api_base', base || '');
+      document.getElementById('settings-modal').classList.add('hidden');
+      location.reload();
+    });
+
+    document.getElementById('add-product-btn').addEventListener('click', () => {
+      const formEl = document.getElementById('add-product-form');
+      formEl.classList.toggle('hidden');
+      document.getElementById('add-product-error').classList.add('hidden');
+    });
+
+    document.getElementById('cancel-add-btn').addEventListener('click', () => {
+      document.getElementById('add-product-form').classList.add('hidden');
+      document.getElementById('add-product-error').classList.add('hidden');
+    });
+
+    document.getElementById('product-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errEl = document.getElementById('add-product-error');
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+      try {
+        const opts = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            rice_type: form.rice_type.value,
+            bag_size_kg: parseInt(form.bag_size_kg.value, 10),
+            quantity: parseInt(form.quantity.value, 10),
+            price_per_bag: parseFloat(form.price_per_bag.value),
+          }),
+          credentials: 'include',
+        };
+        const res = await fetch(API() + '/inventory', opts);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add product');
+        form.reset();
+        document.getElementById('add-product-form').classList.add('hidden');
+        loadDashboard();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

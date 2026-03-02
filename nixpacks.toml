@@ -1,0 +1,9 @@
+# Nixpacks configuration for FarmWallet Rice Shops
+# Used by Railway, Render, and other Nixpacks-based platforms
+# Node version: .nvmrc (20) or engines.node in package.json
+
+[phases.install]
+cmds = ["npm ci --omit=dev || npm install --omit=dev"]
+
+[start]
+cmd = "node src/server.js"

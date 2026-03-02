@@ -1,0 +1,44 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: farmwallet_ghana_rice
+      DB_USER: farmwallet
+      DB_PASSWORD: farmwallet_secret
+      HTTPS_PORT: "3443"
+      # JWT_SECRET required in production (min 32 chars). Override via .env for real deployments.
+      JWT_SECRET: ${JWT_SECRET:-farmwallet-docker-dev-secret-change-in-production-32chars}
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: farmwallet_ghana_rice
+      MYSQL_USER: farmwallet
+      MYSQL_PASSWORD: farmwallet_secret
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_secret"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mysql_data:

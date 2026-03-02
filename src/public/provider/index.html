@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FarmWallet Rice - Mechanization Provider Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f5; padding: 1rem; min-height: 100vh; }
+    .container { max-width: 600px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { color: #0d4f6e; font-size: 1.5rem; margin-bottom: 0.5rem; }
+    h2 { font-size: 1rem; color: #333; margin-bottom: 0.75rem; }
+    .login-form input { width: 100%; padding: 0.75rem; margin-bottom: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; }
+    .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    .btn-primary { background: #0d4f6e; color: #fff; }
+    .btn-secondary { background: #eee; color: #333; }
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+    .stat { text-align: center; padding: 1rem; background: #f0f7fa; border-radius: 8px; }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #0d4f6e; }
+    .stat-label { font-size: 0.85rem; color: #666; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #eee; }
+    th { font-size: 0.8rem; color: #666; }
+    .hidden { display: none !important; }
+    .error { color: #c00; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .service-list { list-style: none; }
+    .service-list li { padding: 0.5rem 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="login-view" class="card">
+      <h1>Mechanization Provider Dashboard</h1>
+      <p style="color:#666;margin-bottom:1rem;">Log in with your phone and 4-digit PIN</p>
+      <div id="login-error" class="error hidden"></div>
+      <form id="login-form">
+        <input type="tel" name="phone" placeholder="Phone (e.g. 0244111001)" required>
+        <input type="password" name="pin" placeholder="4-digit PIN" maxlength="4" pattern="\d{4}" required>
+        <button type="submit" class="btn btn-primary">Log in</button>
+      </form>
+    </div>
+
+    <div id="dashboard-view" class="hidden">
+      <div class="card">
+        <div class="header">
+          <h1 id="provider-name">Provider</h1>
+          <button id="logout-btn" class="btn btn-secondary">Log out</button>
+        </div>
+        <p style="color:#666;">Region: <strong id="provider-region"></strong> | Phone: <strong id="provider-phone"></strong></p>
+        <p style="color:#0d4f6e;font-size:0.9rem;margin-top:0.5rem;">Your USSD shortcode: <strong>*920*73*<span id="provider-code">--</span>#</strong> (customers dial this for direct access)</p>
+      </div>
+
+      <div class="card">
+        <h2>Earnings Summary</h2>
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-value" id="total-amount">0</div>
+            <div class="stat-label">Total (GHS)</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="net-earnings">0</div>
+            <div class="stat-label">Net Earnings (GHS)</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="commission">0</div>
+            <div class="stat-label">Commission (10%)</div>
+          </div>
+          <div class="stat">
+            <div class="stat-value" id="transaction-count">0</div>
+            <div class="stat-label">Transactions</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="header">
+          <h2>My Tractors & Services</h2>
+          <button id="add-tractor-btn" class="btn btn-primary">Add Tractor</button>
+        </div>
+        <div id="add-tractor-form" class="hidden" style="margin-bottom:1rem;padding:1rem;background:#f0f7fa;border-radius:8px;">
+          <h3 style="font-size:1rem;margin-bottom:0.75rem;">Add tractor or equipment</h3>
+          <div id="add-tractor-error" class="error hidden"></div>
+          <form id="tractor-form">
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Service type</label>
+              <select name="service_type" required style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+                <option value="tractor">Tractor</option>
+                <option value="plowing">Plowing</option>
+                <option value="threshing">Threshing</option>
+                <option value="harvesting">Harvesting</option>
+                <option value="seed_drill">Seed Drill</option>
+                <option value="irrigation">Irrigation</option>
+                <option value="sprayer">Sprayer</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Registration number (required)</label>
+              <input type="text" name="tractor_registration_number" required placeholder="e.g. TRC-01-001" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Price per unit (GHS)</label>
+              <input type="number" name="price_per_unit" min="0" step="0.01" required placeholder="e.g. 100" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <div style="margin-bottom:0.5rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Unit</label>
+              <select name="unit" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+                <option value="per_acre" selected>Per acre</option>
+                <option value="per_hour">Per hour</option>
+                <option value="per_day">Per day</option>
+                <option value="per_job">Per job</option>
+              </select>
+            </div>
+            <div style="margin-bottom:0.75rem;">
+              <label style="display:block;font-size:0.85rem;color:#666;">Description (optional)</label>
+              <input type="text" name="description" placeholder="e.g. John Deere 5055E" style="width:100%;padding:0.5rem;border:1px solid #ddd;border-radius:6px;">
+            </div>
+            <button type="submit" class="btn btn-primary">Add Tractor</button>
+            <button type="button" id="cancel-tractor-btn" class="btn btn-secondary" style="margin-left:0.5rem;">Cancel</button>
+          </form>
+        </div>
+        <ul id="services-list" class="service-list"></ul>
+      </div>
+
+      <div class="card">
+        <h2>Recent Transactions</h2>
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Service</th><th>Amount</th><th>Commission</th></tr>
+          </thead>
+          <tbody id="transactions-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function escapeHtml(s) {
+      if (s == null || s === undefined) return '';
+      const t = String(s);
+      const div = document.createElement('div');
+      div.textContent = t;
+      return div.innerHTML;
+    }
+    const API = '/api/provider';
+    let token = null;
+
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    const SERVICE_NAMES = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const err = document.getElementById('login-error');
+      err.textContent = '';
+      hide(err);
+      try {
+        const res = await fetch(API + '/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phone: form.phone.value.replace(/\D/g, ''),
+            pin: form.pin.value,
+          }),
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        token = data.token;
+        hide(document.getElementById('login-view'));
+        show(document.getElementById('dashboard-view'));
+        loadDashboard();
+      } catch (e) {
+        err.textContent = e.message;
+        show(err);
+      }
+    });
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch(API + '/logout', { method: 'POST', credentials: 'include' });
+      token = null;
+      show(document.getElementById('login-view'));
+      hide(document.getElementById('dashboard-view'));
+    });
+
+    async function loadDashboard() {
+      const opts = { credentials: 'include' };
+      if (token) opts.headers = { Authorization: 'Bearer ' + token };
+      const res = await fetch(API + '/dashboard', opts);
+      if (res.status === 401) {
+        show(document.getElementById('login-view'));
+        hide(document.getElementById('dashboard-view'));
+        return;
+      }
+      const data = await res.json();
+      if (!res.ok) return console.error(data);
+
+      document.getElementById('provider-name').textContent = data.provider.name;
+      document.getElementById('provider-region').textContent = data.provider.region || '-';
+      document.getElementById('provider-phone').textContent = data.provider.phone?.replace('233', '0') || '-';
+      document.getElementById('provider-code').textContent = data.provider.provider_code || '--';
+      document.getElementById('total-amount').textContent = data.stats.total_amount;
+      document.getElementById('net-earnings').textContent = data.stats.net_earnings;
+      document.getElementById('commission').textContent = data.stats.total_commission;
+      document.getElementById('transaction-count').textContent = data.stats.transaction_count;
+
+      const services = data.provider.MechanizationServices || [];
+      const svcList = document.getElementById('services-list');
+      svcList.innerHTML = services.map(s => {
+        const unit = s.unit === 'per_acre' ? '/acre' : s.unit === 'per_hour' ? '/hr' : s.unit === 'per_day' ? '/day' : '';
+        const status = s.verification_status || 'pending';
+        const statusBadge = status === 'verified' ? ' ✓' : status === 'rejected' ? ' ✗' : ' (pending approval)';
+        return `<li><span>${escapeHtml(SERVICE_NAMES[s.service_type] || s.service_type)}</span><span>GHS ${escapeHtml(s.price_per_unit)}${escapeHtml(unit)} (${escapeHtml(s.tractor_registration_number || '-')})${escapeHtml(statusBadge)}</span></li>`;
+      }).join('') || '<li>No services</li>';
+
+      const tbody = document.getElementById('transactions-tbody');
+      tbody.innerHTML = (data.recent_transactions || []).map(t => {
+        const d = new Date(t.created_at).toLocaleDateString();
+        return `<tr><td>${d}</td><td>${escapeHtml(SERVICE_NAMES[t.service_type] || t.service_type)}</td><td>GHS ${escapeHtml(t.amount)}</td><td>GHS ${escapeHtml(t.farmwallet_commission)}</td></tr>`;
+      }).join('') || '<tr><td colspan="4">No transactions yet</td></tr>';
+    }
+
+    document.getElementById('add-tractor-btn').addEventListener('click', () => {
+      const formEl = document.getElementById('add-tractor-form');
+      formEl.classList.toggle('hidden');
+      document.getElementById('add-tractor-error').classList.add('hidden');
+    });
+
+    document.getElementById('cancel-tractor-btn').addEventListener('click', () => {
+      document.getElementById('add-tractor-form').classList.add('hidden');
+      document.getElementById('add-tractor-error').classList.add('hidden');
+    });
+
+    document.getElementById('tractor-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const errEl = document.getElementById('add-tractor-error');
+      errEl.textContent = '';
+      errEl.classList.add('hidden');
+      try {
+        const opts = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            service_type: form.service_type.value,
+            tractor_registration_number: form.tractor_registration_number.value.trim(),
+            price_per_unit: parseFloat(form.price_per_unit.value),
+            unit: form.unit.value,
+            description: form.description.value.trim() || undefined,
+          }),
+          credentials: 'include',
+        };
+        const res = await fetch(API + '/services', opts);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to add tractor');
+        form.reset();
+        document.getElementById('add-tractor-form').classList.add('hidden');
+        loadDashboard();
+      } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
