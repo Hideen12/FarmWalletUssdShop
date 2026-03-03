@@ -1,6 +1,6 @@
 const db = require('../models');
 const smsService = require('../services/smsService');
-const momoService = require('../services/momoService');
+const paystackService = require('../services/paystackService');
 const pinService = require('../services/pinService');
 const sessionStore = require('../services/ussdSessionStore');
 const { sanitizeUssdInput, isValidGhanaCard, isValidPin } = require('../middleware/security');
@@ -722,15 +722,20 @@ async function handleExhibitorShopInput(sessionId, phoneNumber, exhibitor, parts
     session.data.quantity = qty;
     session.data.amount = amount;
     sessionStore.set(sessionId, phoneNumber, session);
-    return CON(`${qty} bags x GHS ${item.price_per_bag} = GHS ${amount.toFixed(2)}\n\nPay with MTN MoMo\nConfirm?\n1. Yes - Pay\n2. No - Cancel`);
+    return CON(`${qty} bags x GHS ${item.price_per_bag} = GHS ${amount.toFixed(2)}\n\nPay with Mobile Money\nSelect provider:\n1. MTN\n2. Vodafone\n3. AirtelTigo\n0. Cancel`);
   }
 
-  if (shopChoice !== '1') {
-    session.data.selectedItem = undefined;
-    session.data.quantity = undefined;
-    session.data.amount = undefined;
-    sessionStore.set(sessionId, phoneNumber, session);
-    return showExhibitorShop(sessionId, phoneNumber, exhibitor, parts);
+  const providerMap = { 1: 'mtn', 2: 'vodafone', 3: 'airteltigo' };
+  const buyerProvider = providerMap[shopChoice];
+  if (!buyerProvider) {
+    if (shopChoice === '0') {
+      session.data.selectedItem = undefined;
+      session.data.quantity = undefined;
+      session.data.amount = undefined;
+      sessionStore.set(sessionId, phoneNumber, session);
+      return showExhibitorShop(sessionId, phoneNumber, exhibitor, parts);
+    }
+    return CON(`${session.data.quantity} bags = GHS ${session.data.amount.toFixed(2)}\n\nSelect provider:\n1. MTN\n2. Vodafone\n3. AirtelTigo\n0. Cancel`);
   }
 
   const qty = session.data.quantity;
@@ -755,7 +760,7 @@ async function handleExhibitorShopInput(sessionId, phoneNumber, exhibitor, parts
 
   await item.update({ quantity: item.quantity - qty });
 
-  const paymentResult = await momoService.initiatePayment(phoneNumber, amount, sale.momo_reference, 'mtn', exhibitor.momo_number);
+  const paymentResult = await paystackService.initiatePayment(phoneNumber, amount, sale.momo_reference, buyerProvider);
 
   if (!paymentResult.success) {
     await item.update({ quantity: item.quantity + qty });
@@ -771,7 +776,7 @@ async function handleExhibitorShopInput(sessionId, phoneNumber, exhibitor, parts
   smsService.sendSaleConfirmation(phoneNumber, exhibitor.name, exhibitor.momo_number, qty, amount);
   sessionStore.clear(sessionId, phoneNumber);
   const commissionNote = commissionPercent > 0 ? `\n(FarmWallet ${commissionPercent}% commission: GHS ${farmwalletCommission.toFixed(2)})` : '';
-  return END(`Order confirmed!\n${qty} bags = GHS ${amount.toFixed(2)}\nMTN MoMo prompt sent.\nComplete payment on your phone.\nShop receives GHS ${exhibitorReceives.toFixed(2)}.${commissionNote}`);
+  return END(`Order confirmed!\n${qty} bags = GHS ${amount.toFixed(2)}\nMoMo prompt sent.\nComplete payment on your phone.\nShop receives GHS ${exhibitorReceives.toFixed(2)}.${commissionNote}`);
 }
 
 module.exports = { handleUSSD };

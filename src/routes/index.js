@@ -1,85 +1,12 @@
 /**
  * API routes - minimal for shops-only app
+ * Payments: Paystack (Ghana mobile money)
  */
 const express = require('express');
 const { Op } = require('sequelize');
 const db = require('../models');
 
 const router = express.Router();
-
-/**
- * MTN MoMo Collection callback
- * MTN sends callback via PUT when requestToPay completes (SUCCESSFUL, FAILED, PENDING)
- * Body: reference (X-Reference-Id), externalId, status, financialTransactionId
- */
-const mtnCollectionCallback = async (req, res) => {
-  try {
-    const body = req.body || {};
-    const status = (body.status || '').toUpperCase();
-    const ref = String(body.reference || body.externalId || '').trim().slice(0, 100);
-
-    if (!ref) {
-      return res.status(400).send('Missing reference');
-    }
-
-    const sale = await db.Sale.findOne({
-      where: { [Op.or]: [{ mtn_reference: ref }, { momo_reference: ref }] },
-      include: [{ model: db.Exhibitor, attributes: ['id', 'momo_number', 'momo_provider', 'name'] }],
-    });
-    if (!sale) {
-      console.warn('MTN callback: sale not found for', ref);
-      return res.status(200).send('OK');
-    }
-
-    let momoStatus = 'initiated';
-    if (status === 'SUCCESSFUL') momoStatus = 'completed';
-    else if (status === 'FAILED') momoStatus = 'failed';
-
-    await sale.update({ momo_status: momoStatus });
-
-    if (momoStatus === 'completed' && sale.Exhibitor?.momo_provider === 'mtn') {
-      const exhibitorReceives = Number(sale.amount) - Number(sale.farmwallet_commission || 0);
-      const momoService = require('../services/momoService');
-      const transfer = await momoService.transferToExhibitor(
-        sale.Exhibitor.momo_number,
-        exhibitorReceives,
-        `PAYOUT-${sale.momo_reference}`,
-        `FarmWallet Rice sale - ${sale.Exhibitor.name}`
-      );
-      if (transfer.success) {
-        console.log(`MTN Disbursement initiated: GHS ${exhibitorReceives} to ${sale.Exhibitor.momo_number}`);
-      }
-    }
-
-    console.log(`MTN Collection callback: ${ref} status=${status} -> ${momoStatus}`);
-    res.status(200).send('OK');
-  } catch (err) {
-    console.error('MTN callback error:', err);
-    res.status(500).send('Error');
-  }
-};
-
-const jsonParser = express.json({ limit: '2kb' });
-router.put('/mtn/callback/collection', jsonParser, mtnCollectionCallback);
-router.post('/mtn/callback/collection', jsonParser, mtnCollectionCallback);
-
-/**
- * MTN MoMo Disbursement callback (optional - for transfer status updates)
- * MTN sends via PUT
- */
-const mtnDisbursementCallback = async (req, res) => {
-  try {
-    const body = req.body || {};
-    const status = (body.status || '').toUpperCase();
-    console.log('MTN Disbursement callback:', body.reference || body.externalId, status);
-    res.status(200).send('OK');
-  } catch (err) {
-    console.error('MTN Disbursement callback error:', err);
-    res.status(500).send('Error');
-  }
-};
-router.put('/mtn/callback/disbursement', jsonParser, mtnDisbursementCallback);
-router.post('/mtn/callback/disbursement', jsonParser, mtnDisbursementCallback);
 
 function requireAdminApiKey(req, res, next) {
   const isProduction = process.env.NODE_ENV === 'production';

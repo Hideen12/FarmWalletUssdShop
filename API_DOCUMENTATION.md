@@ -1,8 +1,8 @@
 # FarmWallet Rice API Documentation
 
-**Version:** 1.6  
+**Version:** 1.7  
 **Base URL:** `http://your-domain:3000` or `https://your-domain:443` (HTTPS on 3443, mapped to 443)  
-**Last updated:** March 2, 2025
+**Last updated:** March 3, 2025
 
 ---
 
@@ -18,7 +18,7 @@
 8. [Provider API](#provider-api-mechanization-service-provider-dashboard)
 9. [Admin API](#admin-api)
 10. [Mechanization Services API](#mechanization-services-api)
-11. [MTN MoMo Callbacks](#mtn-momo-callbacks)
+11. [Paystack Webhook](#paystack-webhook)
 12. [Error Responses](#error-responses)
 13. [Data Models](#data-models)
 14. [Web Dashboards](#web-dashboards)
@@ -28,7 +28,7 @@
 
 ## Overview
 
-FarmWallet Rice is a USSD-based rice marketplace for shops in Ghana. Shop owners register with Ghana Card, create shops, and list rice types (with bag sizes 5–100 kg). Consumers browse shops and pay via MTN MoMo. The app also offers **mechanization services** (tractor, plowing, threshing, etc.) — pricing is per acre; farmers enter acres, total = price × acres; they contact providers directly.
+FarmWallet Rice is a USSD-based rice marketplace for shops in Ghana. Shop owners register with Ghana Card, create shops, and list rice types (with bag sizes 5–100 kg). Consumers browse shops and pay via **Paystack** mobile money (MTN, Vodafone, AirtelTigo). The app also offers **mechanization services** (tractor, plowing, threshing, etc.) — pricing is per acre; farmers enter acres, total = price × acres; they contact providers directly.
 
 | Endpoint Type | Auth | Description |
 |---------------|------|-------------|
@@ -37,7 +37,7 @@ FarmWallet Rice is a USSD-based rice marketplace for shops in Ghana. Shop owners
 | Exhibitor (Shop) | JWT (Bearer / Cookie) | Shop owner login, dashboard, logout |
 | Provider | JWT (Bearer / Cookie) | Mechanization provider dashboard |
 | Admin | JWT or API Key | Shop management, commission |
-| MTN Callbacks | None | MoMo payment status webhooks |
+| Paystack Webhook | None | Payment status (charge.success, charge.failed) |
 
 CORS is configurable via `CORS_ORIGIN` (comma-separated origins). Rate limits: API 100/15min, USSD 30/min, login 5/15min per IP. See [SECURITY.md](SECURITY.md) for details.
 
@@ -86,8 +86,7 @@ CORS is configurable via `CORS_ORIGIN` (comma-separated origins). Rate limits: A
 | GET | `/api/admin/mechanization/transactions` | JWT or API Key | List mechanization transactions |
 | POST | `/api/admin/mechanization/transactions` | JWT or API Key | Record transaction (10% commission) |
 | GET | `/api/commission` | API Key | Commission summary |
-| PUT/POST | `/api/mtn/callback/collection` | — | MTN Collection webhook |
-| PUT/POST | `/api/mtn/callback/disbursement` | — | MTN Disbursement webhook |
+| POST | `/api/paystack/webhook` | — | Paystack webhook (charge.success, charge.failed) |
 
 ---
 
@@ -157,7 +156,9 @@ npm run register-provider
 | `CORS_ORIGIN` | No | Comma-separated allowed origins (e.g. `https://admin.example.com`). Empty = same-origin. |
 | `SSL_CERT_PATH`, `SSL_KEY_PATH`, `SSL_CA_PATH` | No | Paths to SSL cert, key, and CA bundle for HTTPS. Default: `/app/ssl/server.crt`, etc. |
 | `HTTPS_PORT` | No | HTTPS port inside container (default: 3443). Map 443:3443 in Docker. |
-| `MTN_*` | Yes*** | MTN MoMo credentials and callback URL |
+| `PAYSTACK_SECRET_KEY` | No* | Paystack secret key for payments. Omit for mock mode. |
+| `PAYSTACK_WEBHOOK_SECRET` | No | Optional: for webhook signature verification |
+| `PAYSTACK_CALLBACK_URL` | No | Optional: base URL (defaults to `MTN_CALLBACK_URL` if set) |
 | `ARKESEL_API_KEY` | No | SMS (Arkesel) for USSD |
 
 ---
@@ -171,16 +172,8 @@ Service info and available endpoints.
 **Response:**
 ```json
 {
-  "service": "FarmWallet Rice Shops",
-  "status": "running",
-  "version": "1.0",
-  "endpoints": {
-    "ussd": "POST /ussd",
-    "health": "GET /health",
-    "dashboard": "GET /dashboard (shop owner login)",
-    "adminDashboard": "GET /admin (shops management, phone + password login)",
-    "admin": "GET /api/admin/* (JWT or X-Api-Key)"
-  }
+  "status": "ok",
+  "service": "FarmWallet Rice Shops"
 }
 ```
 
@@ -193,8 +186,7 @@ Health check.
 **Response:**
 ```json
 {
-  "status": "ok",
-  "timestamp": "<ISO 8601>"
+  "status": "ok"
 }
 ```
 
@@ -268,7 +260,7 @@ sessionId=abc123&phoneNumber=233555227753&text=1&serviceCode=*920*72#
 | Option | Flow |
 |--------|------|
 | 1 | Register as Shop (Ghana Card) |
-| 2 | Browse Shops & Buy Rice (select shop → select rice → enter quantity → MoMo pay) |
+| 2 | Browse Shops & Buy Rice (select shop → select rice → enter quantity → select MoMo provider → pay) |
 | 3 | Shop Owner — Manage My Shop (PIN, add rice: type → bag size → qty → price) |
 | 4 | Mechanization Services (select type → select provider → enter acres → see total & contact) |
 | 5 | Share your info (name, region, interest, farm size — no registration) |
@@ -1229,42 +1221,47 @@ Record a completed tractor service. FarmWallet takes 10% commission (configurabl
 
 ---
 
-## MTN MoMo Callbacks
+## Paystack Webhook
 
-These endpoints are called by MTN when payment status changes. **Do not call manually.** Configure `MTN_CALLBACK_URL` to point to your base URL (e.g. `https://your-domain.com`); MTN appends the path.
+The Paystack webhook receives payment events. **Do not call manually.** Configure the webhook URL in your [Paystack Dashboard](https://dashboard.paystack.co/#/settings/developer) → Settings → API Keys & Webhooks.
 
-### PUT/POST /api/mtn/callback/collection
+### POST /api/paystack/webhook
 
-**Full URL:** `{MTN_CALLBACK_URL}/api/mtn/callback/collection`
+**Webhook URL:** `https://your-domain/api/paystack/webhook`
 
-MTN Collection (requestToPay) callback. MTN sends when a payment completes or fails.
+Paystack sends `charge.success` and `charge.failed` events when a mobile money payment completes or fails.
 
-**Request Body (MTN format):**
+**Request Headers:**
+| Header | Description |
+|--------|-------------|
+| `Content-Type` | `application/json` |
+| `X-Paystack-Signature` | HMAC SHA512 signature (verify with `PAYSTACK_WEBHOOK_SECRET`) |
+
+**Request Body (Paystack event format):**
 ```json
 {
-  "reference": "uuid-from-x-reference-id",
-  "externalId": "optional-external-id",
-  "status": "SUCCESSFUL",
-  "financialTransactionId": "optional"
+  "event": "charge.success",
+  "data": {
+    "reference": "SALE-1234567890",
+    "status": "success",
+    "amount": 12000,
+    "currency": "GHS"
+  }
 }
 ```
 
-| Field | Description |
+| Event | Description |
 |-------|-------------|
-| reference | X-Reference-Id from requestToPay |
-| status | `SUCCESSFUL`, `FAILED`, or `PENDING` |
+| `charge.success` | Payment completed. System updates sale status and initiates exhibitor payout via Paystack Transfer. |
+| `charge.failed` | Payment failed. System updates sale status to `failed`. |
 
 **Response:** `200 OK` (plain text)
 
-On `SUCCESSFUL`, the system initiates MTN Disbursement to the shop owner's MoMo number.
+On `charge.success`, the system:
+1. Updates the sale record to `momo_status: completed`
+2. Initiates a Paystack Transfer to the exhibitor's MoMo number (MTN, Vodafone, or AirtelTigo)
 
----
-
-### PUT/POST /api/mtn/callback/disbursement
-
-MTN Disbursement callback. Optional; used for transfer status updates.
-
-**Response:** `200 OK`
+**Environment:** Set `PAYSTACK_SECRET_KEY` for real payments. If unset, the app uses mock mode (no real charges).
 
 ---
 
@@ -1339,8 +1336,8 @@ MTN Disbursement callback. Optional; used for transfer status updates.
 | amount | decimal | Total amount (GHS) |
 | farmwallet_commission | decimal | Commission amount |
 | momo_status | enum | initiated, pending, completed, failed |
-| momo_reference | string | MTN reference |
-| mtn_reference | string | X-Reference-Id from requestToPay |
+| momo_reference | string | Sale reference (e.g. SALE-1234567890), used for Paystack charge lookup |
+| mtn_reference | string | Paystack transaction reference (for webhook lookup) |
 
 ### UssdSession
 

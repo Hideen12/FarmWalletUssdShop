@@ -21,6 +21,11 @@ const corsOrigins = process.env.CORS_ORIGIN
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(helmetMiddleware);
 app.use(cookieParser());
+
+// Paystack webhook - must use raw body (before json parser) for signature verification
+const paystackWebhook = require('./routes/paystackWebhook');
+app.post('/api/paystack/webhook', express.raw({ type: 'application/json' }), paystackWebhook);
+
 app.use(express.json({ limit: '5kb' }));
 app.use(express.urlencoded({ extended: false, limit: '5kb' }));
 
@@ -117,7 +122,7 @@ async function start() {
     const scheme = hasCert ? 'https' : 'http';
     const port = hasCert ? httpsPort : PORT;
     console.log(`USSD: POST ${scheme}://your-domain:${port}/ussd`);
-    console.log(`MTN callback: POST ${scheme}://your-domain:${port}/api/mtn/callback/collection`);
+    console.log(`Paystack webhook: POST ${scheme}://your-domain:${port}/api/paystack/webhook`);
     console.log(`Shortcode: *920*72# or *920*72*01# for Shop 01`);
     console.log(`Mechanization: *920*73# or *920*73*01# for Provider 01`);
   });

@@ -43,8 +43,8 @@ async function seed() {
         await provider.update({ provider_code: providerCode });
       }
 
-      const count = await db.MechanizationService.count({ where: { provider_id: provider.id } });
-      if (count > 0) continue;
+      const svcCount = await db.MechanizationService.count({ where: { provider_id: provider.id } });
+      if (svcCount > 0) continue;
 
       for (let i = 0; i < 3; i++) {
         const type = SERVICE_TYPES[(provider.id + i) % SERVICE_TYPES.length];

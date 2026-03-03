@@ -4,9 +4,9 @@
 
 - [ ] MySQL database provisioned (Railway, PlanetScale, Render, or self-hosted)
 - [ ] Environment variables configured (see below)
-- [ ] MTN MoMo credentials (Collection + Disbursement) for production
+- [ ] Paystack secret key configured for production
 - [ ] Africa's Talking / Arkesel USSD callback URL set to your deployed domain
-- [ ] MTN callback URL set to `https://your-domain/api/mtn/callback/collection`
+- [ ] Paystack webhook URL set to `https://your-domain/api/paystack/webhook`
 
 ## Required environment variables
 
@@ -28,8 +28,7 @@
 | `FARMWALLET_COMMISSION_PERCENT` | Commission % (default: 2) |
 | `ADMIN_API_KEY` | For `/api/commission` |
 | `ARKESEL_API_KEY` | SMS notifications |
-| `MTN_*` | MTN MoMo credentials (see README) |
-| `MTN_CALLBACK_URL` | Base URL for MTN callbacks (e.g. `https://yourapp.railway.app`) |
+| `PAYSTACK_SECRET_KEY` | Paystack secret key for payments (see README) |
 
 ## Deployment options
 
@@ -82,8 +81,8 @@ git push heroku main
    Set your provider's callback URL to:  
    `https://your-domain/ussd`
 
-3. **Configure MTN callback**  
-   Set `MTN_CALLBACK_URL` to your base URL (e.g. `https://yourapp.railway.app`)
+3. **Configure Paystack webhook**  
+   In Paystack Dashboard → Settings → Webhooks, set URL to `https://your-domain/api/paystack/webhook`
 
 4. **Test**
    - `GET https://your-domain/health` → `{"status":"ok"}`

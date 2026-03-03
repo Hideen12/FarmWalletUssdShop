@@ -52,7 +52,7 @@ See **[DEPLOYMENT.md](DEPLOYMENT.md)** for a full deployment guide.
 **Quick deploy (Railway, Render, Nixpacks):** Connect your repo; set env vars; deploy.
 
 **Required env vars:** `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`  
-**Optional:** `EXHIBITION_DAY`, `FARMWALLET_COMMISSION_PERCENT`, `ADMIN_API_KEY`, `MTN_*`, `ARKESEL_API_KEY`
+**Optional:** `EXHIBITION_DAY`, `FARMWALLET_COMMISSION_PERCENT`, `ADMIN_API_KEY`, `PAYSTACK_SECRET_KEY`, `ARKESEL_API_KEY`
 
 ## Environment
 
@@ -62,7 +62,7 @@ See **[DEPLOYMENT.md](DEPLOYMENT.md)** for a full deployment guide.
 | `FARMWALLET_COMMISSION_PERCENT` | Commission % (0–50) on each sale. Default: 2 |
 | `ADMIN_API_KEY` | API key for `/api/commission` (optional) |
 | `ARKESEL_API_KEY` | Arkesel SMS API key |
-| `MTN_*` | MTN MoMo credentials (see below) |
+| `PAYSTACK_SECRET_KEY` | Paystack secret key for payments (see below) |
 | `DB_*` | MySQL connection |
 
 ## Commission
@@ -91,46 +91,36 @@ Set `ADMIN_API_KEY` in `.env`. All admin routes require `X-Api-Key: your_key` or
 - **Input sanitization** – USSD inputs trimmed, length-limited, control chars stripped
 - **Ghana Card / phone validation** – Format checks on exhibitor registration
 
-## MTN MoMo API (Ghana)
+## Paystack (Ghana Mobile Money)
 
-The app uses **MTN MoMo** for mobile money payments.
+The app uses **Paystack** for mobile money payments (MTN, Vodafone, AirtelTigo).
 
-### Authentication
+### Setup
 
-- **Subscription Key** – From API Manager Portal (Profile), used in `Ocp-Apim-Subscription-Key` header
-- **API User + API Key** – For OAuth 2.0; created via Provisioning API (sandbox) or Partner Portal (production)
-
-### Sandbox Provisioning
-
-```bash
-# Create API User and Key for Collection
-MTN_CALLBACK_HOST=your-ngrok.ngrok-free.app \
-MTN_COLLECTION_SUBSCRIPTION_KEY=your_key \
-  node scripts/mtn-provision-sandbox.js collection
-
-# Create for Disbursement
-MTN_DISBURSEMENT_SUBSCRIPTION_KEY=your_key \
-  node scripts/mtn-provision-sandbox.js disbursement
-```
+1. Create a [Paystack account](https://dashboard.paystack.co/#/signup)
+2. Get your **Secret Key** from Settings → API Keys & Webhooks
+3. Set `PAYSTACK_SECRET_KEY` in your environment
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
-| `MTN_BASE_URL` | `https://sandbox.momodeveloper.mtn.com` (sandbox) or production URL |
-| `MTN_TARGET_ENV` | `sandbox` or `mtnghana` (production) |
-| `MTN_CALLBACK_URL` | Base URL for callbacks (e.g. `https://your-domain`) |
-| `MTN_COLLECTION_USER_ID` | API User UUID (X-Reference-Id from provisioning) |
-| `MTN_COLLECTION_API_KEY` | API Key from provisioning |
-| `MTN_COLLECTION_SUBSCRIPTION_KEY` | Collection product subscription key |
-| `MTN_DISBURSEMENT_*` | Same for Disbursement product |
+| `PAYSTACK_SECRET_KEY` | Your Paystack secret key (test or live) |
+| `PAYSTACK_WEBHOOK_SECRET` | Optional: for webhook signature verification |
+| `PAYSTACK_CALLBACK_URL` | Optional: base URL (defaults to `MTN_CALLBACK_URL` if set) |
 
-### Callback
+### Webhook
 
-MTN sends callbacks via **PUT** when payment status changes. Callback URL: `{MTN_CALLBACK_URL}/api/mtn/callback/collection`
+Set your webhook URL in Paystack Dashboard → Settings → API Keys & Webhooks:
 
-### Optional: Validate Payer
+```
+https://your-domain/api/paystack/webhook
+```
 
-Set `MTN_VALIDATE_PAYER=true` to check if the buyer has an active MoMo wallet before initiating payment. This can prevent `PAYER_NOT_FOUND` errors.
+Paystack will send `charge.success` and `charge.failed` events. On success, the app automatically transfers the exhibitor's share to their MoMo number.
 
-If MTN credentials are not set, the app falls back to mock payments (no real charge).
+### Transfer (Payout)
+
+Exhibitor payouts use Paystack's Transfer API. Ensure your Paystack balance is funded. You may need to disable OTP for transfers in Dashboard → Preferences.
+
+If `PAYSTACK_SECRET_KEY` is not set, the app uses mock payments (no real charge).
