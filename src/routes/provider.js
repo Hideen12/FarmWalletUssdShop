@@ -110,7 +110,7 @@ router.get('/dashboard', async (req, res) => {
       attributes: ['id', 'amount', 'farmwallet_commission', 'farmer_phone', 'tractor_registration_number', 'created_at'],
       include: [{ model: db.MechanizationService, attributes: ['service_type', 'unit'] }],
       order: [['created_at', 'DESC']],
-      limit: 20,
+      limit: 10,
     });
 
     const totals = await db.MechanizationTransaction.findAll({

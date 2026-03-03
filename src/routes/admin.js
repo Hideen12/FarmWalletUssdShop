@@ -108,7 +108,7 @@ router.use(requireAdmin);
  */
 router.get('/exhibitors', async (req, res) => {
   try {
-    const { page = 1, limit = 20, day, active, search } = req.query;
+    const { page = 1, limit = 10, day, active, search } = req.query;
     const where = {};
     if (day) where.exhibition_day = parseInt(day, 10);
     if (active !== undefined) where.is_active = active === 'true';
@@ -123,10 +123,11 @@ router.get('/exhibitors', async (req, res) => {
       }
     }
 
+    const lim = Math.min(parseInt(limit, 10) || 10, 50);
     const { count, rows } = await db.Exhibitor.findAndCountAll({
       where,
-      limit: Math.min(parseInt(limit, 10) || 20, 100),
-      offset: (Math.max(parseInt(page, 10) || 1, 1) - 1) * (parseInt(limit, 10) || 20),
+      limit: lim,
+      offset: (Math.max(parseInt(page, 10) || 1, 1) - 1) * lim,
       order: [['created_at', 'DESC']],
       attributes: { exclude: ['pin_hash'] },
     });
@@ -135,7 +136,7 @@ router.get('/exhibitors', async (req, res) => {
       exhibitors: rows,
       pagination: {
         page: parseInt(page, 10) || 1,
-        limit: parseInt(limit, 10) || 20,
+        limit: parseInt(limit, 10) || 10,
         total: count,
       },
     });
@@ -164,7 +165,7 @@ router.get('/exhibitors/:id', async (req, res) => {
     const recentSales = await db.Sale.findAll({
       where: { exhibitor_id: exhibitor.id },
       attributes: ['id', 'quantity', 'amount', 'momo_status', 'created_at'],
-      limit: 10,
+      limit: 5,
       order: [['created_at', 'DESC']],
     });
 
@@ -295,15 +296,15 @@ router.post('/users', express.json(), async (req, res) => {
  */
 router.get('/inventory', async (req, res) => {
   try {
-    const { status, exhibitor_id, page = 1, limit = 50 } = req.query;
+    const { status, exhibitor_id, page = 1, limit = 20 } = req.query;
     const where = {};
     if (status && ['pending', 'verified', 'rejected'].includes(status)) where.verification_status = status;
     if (exhibitor_id) where.exhibitor_id = parseInt(exhibitor_id, 10);
 
     const { count, rows } = await db.ExhibitorInventory.findAndCountAll({
       where,
-      limit: Math.min(parseInt(limit, 10) || 50, 100),
-      offset: (Math.max(parseInt(page, 10) || 1, 1) - 1) * (parseInt(limit, 10) || 50),
+      limit: Math.min(parseInt(limit, 10) || 20, 50),
+      offset: (Math.max(parseInt(page, 10) || 1, 1) - 1) * (parseInt(limit, 10) || 20),
       order: [['created_at', 'DESC']],
       include: [{ model: db.Exhibitor, attributes: ['id', 'shop_id', 'name'] }],
     });
@@ -318,7 +319,7 @@ router.get('/inventory', async (req, res) => {
     res.json({
       items,
       inventory: items,
-      pagination: { page: parseInt(page, 10) || 1, limit: parseInt(limit, 10) || 50, total: count },
+      pagination: { page: parseInt(page, 10) || 1, limit: parseInt(limit, 10) || 20, total: count },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -499,7 +500,7 @@ router.get('/commission', async (req, res) => {
  */
 router.get('/data-submissions', async (req, res) => {
   try {
-    const { format = 'json', type, start, end, page = 1, limit = 500 } = req.query;
+    const { format = 'json', type, start, end, page = 1, limit = 100 } = req.query;
     const where = {};
     if (type) where.submission_type = String(type).trim();
     if (start) where.created_at = { ...where.created_at, [Op.gte]: new Date(start) };
@@ -508,8 +509,8 @@ router.get('/data-submissions', async (req, res) => {
     const rows = await db.DataSubmission.findAll({
       where,
       order: [['created_at', 'DESC']],
-      limit: format === 'csv' ? 10000 : Math.min(parseInt(limit, 10) || 500, 1000),
-      offset: format === 'csv' ? 0 : (Math.max(parseInt(page, 10) || 1, 1) - 1) * (parseInt(limit, 10) || 500),
+      limit: format === 'csv' ? 5000 : Math.min(parseInt(limit, 10) || 100, 500),
+      offset: format === 'csv' ? 0 : (Math.max(parseInt(page, 10) || 1, 1) - 1) * (parseInt(limit, 10) || 100),
     });
 
     if (format === 'csv') {

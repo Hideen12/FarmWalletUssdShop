@@ -14,52 +14,37 @@ const { helmetMiddleware, apiLimiter, ussdLimiter, loginLimiter } = require('./m
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const corsOrigin = process.env.CORS_ORIGIN;
-app.use(
-  cors({
-    origin: corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : true,
-    credentials: true,
-  })
-);
+// CORS - cache origin list to avoid parse on every request
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
+  : true;
+app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(helmetMiddleware);
 app.use(cookieParser());
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+app.use(express.json({ limit: '5kb' }));
+app.use(express.urlencoded({ extended: false, limit: '5kb' }));
 
-app.get('/', (req, res) => {
-  res.json({
-    service: 'FarmWallet Rice Shops',
-    status: 'running',
-    version: '1.0',
-    endpoints: {
-      ussd: 'POST /ussd',
-      health: 'GET /health',
-      dashboard: 'GET /dashboard (exhibitor login)',
-      providerDashboard: 'GET /provider (mechanization provider login)',
-      adminDashboard: 'GET /admin (exhibitors, products, mechanization)',
-      admin: 'GET /api/admin/* (JWT or X-Api-Key)',
-    },
-  });
-});
+// Minimal root - reduces payload and parse time
+app.get('/', (req, res) => res.json({ status: 'ok', service: 'FarmWallet Rice Shops' }));
 
-app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// Health check - minimal JSON for load balancers
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-// SSL certificate validation (Comodo etc.) - serve at root and .well-known
-const sslValidationFile = path.join(__dirname, '..', '6E7A87F8F3C41A1D2B3C317EAAE61127.txt');
-app.get('/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', (req, res) => {
-  if (fs.existsSync(sslValidationFile)) {
-    res.type('text/plain').sendFile(sslValidationFile);
-  } else {
-    res.status(404).send('Not found');
+// SSL validation - cached at startup (avoids fs per request)
+const sslValidationPath = path.join(__dirname, '..', '6E7A87F8F3C41A1D2B3C317EAAE61127.txt');
+const sslValidationContent = (() => {
+  try {
+    return fs.existsSync(sslValidationPath) ? fs.readFileSync(sslValidationPath, 'utf8') : null;
+  } catch {
+    return null;
   }
-});
-app.get('/.well-known/pki-validation/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', (req, res) => {
-  if (fs.existsSync(sslValidationFile)) {
-    res.type('text/plain').sendFile(sslValidationFile);
-  } else {
-    res.status(404).send('Not found');
-  }
-});
+})();
+const sslValidationHandler = (req, res) => {
+  if (sslValidationContent) res.type('text/plain').send(sslValidationContent);
+  else res.status(404).send('Not found');
+};
+app.get('/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', sslValidationHandler);
+app.get('/.well-known/pki-validation/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', sslValidationHandler);
 
 app.get('/ussd', (req, res) => {
   res.status(405).json({

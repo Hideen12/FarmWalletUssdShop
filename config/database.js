@@ -28,10 +28,10 @@ module.exports = {
     dialect: 'mysql',
     logging: false,
     pool: {
-      max: 10,
+      max: 5,
       min: 0,
-      acquire: 30000,
-      idle: 10000,
+      acquire: 20000,
+      idle: 5000,
     },
   },
 };

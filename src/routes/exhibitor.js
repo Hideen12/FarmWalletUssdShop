@@ -131,7 +131,7 @@ router.get('/dashboard', async (req, res) => {
       db.Sale.findAll({
         where: { exhibitor_id: exhibitorId },
         attributes: ['id', 'quantity', 'amount', 'momo_status', 'buyer_phone', 'rice_type', 'created_at'],
-        limit: 15,
+        limit: 10,
         order: [['created_at', 'DESC']],
       }),
     ]);

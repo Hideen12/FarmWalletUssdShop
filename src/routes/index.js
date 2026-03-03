@@ -59,10 +59,9 @@ const mtnCollectionCallback = async (req, res) => {
   }
 };
 
-const jsonParser = express.json();
-const urlEncoded = express.urlencoded({ extended: true });
-router.put('/mtn/callback/collection', jsonParser, urlEncoded, mtnCollectionCallback);
-router.post('/mtn/callback/collection', jsonParser, urlEncoded, mtnCollectionCallback);
+const jsonParser = express.json({ limit: '2kb' });
+router.put('/mtn/callback/collection', jsonParser, mtnCollectionCallback);
+router.post('/mtn/callback/collection', jsonParser, mtnCollectionCallback);
 
 /**
  * MTN MoMo Disbursement callback (optional - for transfer status updates)
@@ -79,8 +78,8 @@ const mtnDisbursementCallback = async (req, res) => {
     res.status(500).send('Error');
   }
 };
-router.put('/mtn/callback/disbursement', jsonParser, urlEncoded, mtnDisbursementCallback);
-router.post('/mtn/callback/disbursement', jsonParser, urlEncoded, mtnDisbursementCallback);
+router.put('/mtn/callback/disbursement', jsonParser, mtnDisbursementCallback);
+router.post('/mtn/callback/disbursement', jsonParser, mtnDisbursementCallback);
 
 function requireAdminApiKey(req, res, next) {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -107,26 +106,37 @@ router.use('/provider', require('./provider'));
  */
 router.get('/commission', requireAdminApiKey, async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const { start, end, limit = 50 } = req.query;
     const where = {};
     if (start) where.created_at = { ...where.created_at, [Op.gte]: new Date(start) };
     if (end) where.created_at = { ...where.created_at, [Op.lte]: new Date(end) };
 
-    const sales = await db.Sale.findAll({
-      where,
-      attributes: ['id', 'amount', 'farmwallet_commission', 'commission_percent', 'created_at'],
-      include: [{ model: db.Exhibitor, attributes: ['shop_id', 'name'] }],
-    });
+    const [agg, sales] = await Promise.all([
+      db.Sale.findAll({
+        where,
+        attributes: [
+          [db.sequelize.fn('SUM', db.sequelize.col('amount')), 'total'],
+          [db.sequelize.fn('SUM', db.sequelize.col('farmwallet_commission')), 'commission'],
+          [db.sequelize.fn('COUNT', db.sequelize.col('id')), 'count'],
+        ],
+        raw: true,
+      }),
+      db.Sale.findAll({
+        where,
+        limit: Math.min(parseInt(limit, 10) || 50, 100),
+        attributes: ['id', 'amount', 'farmwallet_commission', 'created_at'],
+        include: [{ model: db.Exhibitor, attributes: ['shop_id', 'name'] }],
+        order: [['created_at', 'DESC']],
+      }),
+    ]);
 
-    const totalSales = sales.reduce((s, r) => s + Number(r.amount), 0);
-    const totalCommission = sales.reduce((s, r) => s + Number(r.farmwallet_commission), 0);
-
+    const a = agg[0] || { total: 0, commission: 0, count: 0 };
     res.json({
       period: { start: start || 'all', end: end || 'all' },
-      total_sales: totalSales.toFixed(2),
-      total_commission: totalCommission.toFixed(2),
+      total_sales: Number(a.total || 0).toFixed(2),
+      total_commission: Number(a.commission || 0).toFixed(2),
       commission_percent: process.env.FARMWALLET_COMMISSION_PERCENT || '2',
-      count: sales.length,
+      count: Number(a.count || 0),
       sales: sales.map((s) => ({
         id: s.id,
         shop: s.Exhibitor?.name,

@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+.env.*
+*.log
+.DS_Store
+README.md
+DEPLOYMENT.md
+SECURITY_AUDIT.md
+.gitignore
+.cursorignore
