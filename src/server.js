@@ -44,6 +44,23 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
+// SSL certificate validation (Comodo etc.) - serve at root and .well-known
+const sslValidationFile = path.join(__dirname, '..', '6E7A87F8F3C41A1D2B3C317EAAE61127.txt');
+app.get('/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', (req, res) => {
+  if (fs.existsSync(sslValidationFile)) {
+    res.type('text/plain').sendFile(sslValidationFile);
+  } else {
+    res.status(404).send('Not found');
+  }
+});
+app.get('/.well-known/pki-validation/6E7A87F8F3C41A1D2B3C317EAAE61127.txt', (req, res) => {
+  if (fs.existsSync(sslValidationFile)) {
+    res.type('text/plain').sendFile(sslValidationFile);
+  } else {
+    res.status(404).send('Not found');
+  }
+});
+
 app.get('/ussd', (req, res) => {
   res.status(405).json({
     error: 'Method Not Allowed',
