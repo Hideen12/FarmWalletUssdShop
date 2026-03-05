@@ -134,10 +134,13 @@ async function start() {
 
   app.listen(PORT, () => {
     console.log(`FarmWallet Rice Shops HTTP on port ${PORT}`);
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL
+      || (process.env.NODE_ENV === 'production' ? 'https://ussdapi.farmwallet.org' : null);
     const scheme = hasCert ? 'https' : 'http';
     const port = hasCert ? httpsPort : PORT;
-    console.log(`USSD: POST ${scheme}://your-domain:${port}/ussd`);
-    console.log(`Paystack webhook: POST ${scheme}://your-domain:${port}/api/paystack/webhook`);
+    const baseUrl = publicBaseUrl || `${scheme}://localhost:${port}`;
+    console.log(`USSD: POST ${baseUrl}/ussd`);
+    console.log(`Paystack webhook: POST ${baseUrl}/api/paystack/webhook`);
     console.log(`Shortcode: *920*72# or *920*72*01# for Shop 01`);
     console.log(`USSD: *920*72# (main), *920*72*XX# for direct access`);
   });
