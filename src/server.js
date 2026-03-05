@@ -107,6 +107,21 @@ async function start() {
     const httpsOptions = {
       key: fs.readFileSync(keyPath),
       cert: fs.readFileSync(certPath),
+      // Strong TLS: TLS 1.2+ only, prefer server cipher order, secure ciphers
+      minVersion: process.env.TLS_MIN_VERSION || 'TLSv1.2',
+      maxVersion: 'TLSv1.3',
+      honorCipherOrder: true,
+      ciphers: [
+        'TLS_AES_256_GCM_SHA384',
+        'TLS_CHACHA20_POLY1305_SHA256',
+        'TLS_AES_128_GCM_SHA256',
+        'ECDHE-ECDSA-AES256-GCM-SHA384',
+        'ECDHE-RSA-AES256-GCM-SHA384',
+        'ECDHE-ECDSA-CHACHA20-POLY1305',
+        'ECDHE-RSA-CHACHA20-POLY1305',
+        'ECDHE-ECDSA-AES128-GCM-SHA256',
+        'ECDHE-RSA-AES128-GCM-SHA256',
+      ].join(':'),
     };
     if (fs.existsSync(caPath)) {
       httpsOptions.ca = fs.readFileSync(caPath);
@@ -124,7 +139,7 @@ async function start() {
     console.log(`USSD: POST ${scheme}://your-domain:${port}/ussd`);
     console.log(`Paystack webhook: POST ${scheme}://your-domain:${port}/api/paystack/webhook`);
     console.log(`Shortcode: *920*72# or *920*72*01# for Shop 01`);
-    console.log(`Mechanization: *920*73# or *920*73*01# for Provider 01`);
+    console.log(`USSD: *920*72# (main), *920*72*XX# for direct access`);
   });
 }
 

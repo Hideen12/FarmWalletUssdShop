@@ -153,7 +153,7 @@
             <button id="add-mech-provider-btn" class="btn btn-primary">Add Provider</button>
           </div>
         </div>
-        <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Tractor, plowing, threshing, and other farm equipment services. Pricing is per acre — farmer enters acres, total = price × acres. USSD: *920*73# or *920*73*01# for Provider 01.</p>
+        <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1rem">Tractor, plowing, threshing, and other farm equipment services. Pricing is per acre — farmer enters acres, total = price × acres. USSD: *920*72# (main), *920*72*50# for Provider (extensions 50-99).</p>
         <table>
           <thead>
             <tr><th>Code</th><th>Business Name</th><th>Phone</th><th>Region</th><th>Services</th><th>Status</th><th>Action</th></tr>
@@ -295,6 +295,7 @@
           <option value="seed_drill">Seed Drill</option>
           <option value="irrigation">Irrigation</option>
           <option value="sprayer">Sprayer</option>
+          <option value="purification">Purification</option>
           <option value="other">Other</option>
         </select>
         <input type="number" name="price_per_unit" placeholder="Price (GHS)" required min="0" step="0.01">
@@ -516,7 +517,7 @@
         if (res.status === 401) return;
         const data = await res.json();
         const tbody = document.getElementById('mech-providers-tbody');
-        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', purification:'Purification', other:'Other' };
         const UNIT = { per_acre:'/acre', per_hour:'/hr', per_day:'/day', per_job:'/job' };
         tbody.innerHTML = (data.providers || []).map(p => {
           const svcs = (p.MechanizationServices || []).map(s => {
@@ -524,7 +525,7 @@
             return `${SVC[s.service_type] || s.service_type}${reg} GHS ${s.price_per_unit}${UNIT[s.unit] || ''}`;
           }).join(', ') || '-';
           const code = p.provider_code || '-';
-          const shortcode = code !== '-' ? `*920*73*${code}#` : '-';
+          const shortcode = code !== '-' ? `*920*72*${code}#` : '-';
           return `<tr><td><code title="${escapeHtml(shortcode)}">${escapeHtml(code)}</code></td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.phone)}</td><td>${escapeHtml(p.region || '-')}</td><td>${escapeHtml(svcs)}</td><td><span class="badge ${p.is_active ? 'badge-success' : 'badge-inactive'}">${p.is_active ? 'Active' : 'Inactive'}</span></td><td><button class="btn btn-primary mech-add-service" style="padding:0.3rem 0.6rem;font-size:0.8rem" data-id="${p.id}" data-name="${escapeHtml(p.name || '')}">Add Service</button></td></tr>`;
         }).join('') || '<tr><td colspan="7">No mechanization providers. Click Add Provider.</td></tr>';
       } catch (e) { console.error(e); }
@@ -536,7 +537,7 @@
         if (res.status === 401) return;
         const data = await res.json();
         const tbody = document.getElementById('mech-pending-services-tbody');
-        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+        const SVC = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', purification:'Purification', other:'Other' };
         const UNIT = { per_acre:'/acre', per_hour:'/hr', per_day:'/day', per_job:'/job' };
         tbody.innerHTML = (data.services || []).map(s => {
           const p = s.MechanizationProvider || {};

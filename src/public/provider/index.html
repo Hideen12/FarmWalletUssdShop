@@ -49,7 +49,7 @@
           <button id="logout-btn" class="btn btn-secondary">Log out</button>
         </div>
         <p style="color:#666;">Region: <strong id="provider-region"></strong> | Phone: <strong id="provider-phone"></strong></p>
-        <p style="color:#0d4f6e;font-size:0.9rem;margin-top:0.5rem;">Your USSD shortcode: <strong>*920*73*<span id="provider-code">--</span>#</strong> (customers dial this for direct access)</p>
+        <p style="color:#0d4f6e;font-size:0.9rem;margin-top:0.5rem;">Your USSD shortcode: <strong>*920*72*<span id="provider-code">--</span>#</strong> (customers dial this for direct access)</p>
       </div>
 
       <div class="card">
@@ -93,6 +93,7 @@
                 <option value="seed_drill">Seed Drill</option>
                 <option value="irrigation">Irrigation</option>
                 <option value="sprayer">Sprayer</option>
+                <option value="purification">Purification</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -150,7 +151,7 @@
     function show(el) { el.classList.remove('hidden'); }
     function hide(el) { el.classList.add('hidden'); }
 
-    const SERVICE_NAMES = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', other:'Other' };
+    const SERVICE_NAMES = { tractor:'Tractor', plowing:'Plowing', threshing:'Threshing', harvesting:'Harvesting', seed_drill:'Seed Drill', irrigation:'Irrigation', sprayer:'Sprayer', purification:'Purification', other:'Other' };
 
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();

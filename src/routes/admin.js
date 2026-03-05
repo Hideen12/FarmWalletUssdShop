@@ -672,13 +672,21 @@ router.get('/mechanization/providers', async (req, res) => {
 
 router.post('/mechanization/providers', express.json(), async (req, res) => {
   try {
-    const { name, phone, momo_number, region, provider_code } = req.body || {};
+    const { name, phone, momo_number, region } = req.body || {};
     const phoneNorm = normalizePhone(phone);
     if (!name || !phoneNorm) return res.status(400).json({ error: 'Name and phone required' });
-    let code = provider_code ? String(provider_code).trim() : null;
-    if (!code) {
+    // USSD extension is always system-generated (50-99 for providers)
+    let code;
+    if (db.UssdExtension) {
+      const [rows] = await db.sequelize.query(
+        `SELECT COALESCE(MAX(CAST(extension AS UNSIGNED)), 49) + 1 as next FROM ussd_extensions WHERE CAST(extension AS UNSIGNED) BETWEEN 50 AND 99`
+      );
+      const next = Math.min(Number(rows?.[0]?.next || 50), 99);
+      code = String(next).padStart(2, '0');
+    } else {
       const count = await db.MechanizationProvider.count();
-      code = String(count + 1).padStart(2, '0');
+      const next = Math.min(50 + count, 99);
+      code = String(next).padStart(2, '0');
     }
     const provider = await db.MechanizationProvider.create({
       name: String(name).trim(),
@@ -688,6 +696,16 @@ router.post('/mechanization/providers', express.json(), async (req, res) => {
       provider_code: code,
       is_active: true,
     });
+    if (db.UssdExtension) {
+      try {
+        await db.UssdExtension.findOrCreate({
+          where: { extension: code },
+          defaults: { entityType: 'provider', entityRef: String(provider.id) },
+        });
+      } catch (e) {
+        console.warn('UssdExtension register:', e.message);
+      }
+    }
     res.status(201).json(provider);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -710,7 +728,7 @@ router.patch('/mechanization/providers/:id', express.json(), async (req, res) =>
   try {
     const provider = await db.MechanizationProvider.findByPk(req.params.id);
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
-    const allowed = ['name', 'phone', 'momo_number', 'region', 'is_active', 'provider_code'];
+    const allowed = ['name', 'phone', 'momo_number', 'region', 'is_active'];
     const updates = {};
     for (const k of allowed) {
       if (req.body[k] !== undefined) {
@@ -734,7 +752,7 @@ router.post('/mechanization/providers/:id/services', express.json(), async (req,
     const provider = await db.MechanizationProvider.findByPk(req.params.id);
     if (!provider) return res.status(404).json({ error: 'Provider not found' });
     const { service_type, price_per_unit, unit, description, tractor_registration_number } = req.body || {};
-    const validTypes = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'other'];
+    const validTypes = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'purification', 'other'];
     const validUnits = ['per_acre', 'per_hour', 'per_day', 'per_job'];
     if (!service_type || !validTypes.includes(service_type)) return res.status(400).json({ error: 'Valid service_type required' });
     if (price_per_unit == null || isNaN(parseFloat(price_per_unit)) || parseFloat(price_per_unit) < 0) return res.status(400).json({ error: 'Valid price_per_unit required' });
@@ -841,7 +859,7 @@ router.patch('/mechanization/services/:id', express.json(), async (req, res) => 
     const service = await db.MechanizationService.findByPk(req.params.id);
     if (!service) return res.status(404).json({ error: 'Service not found' });
     const allowed = ['service_type', 'price_per_unit', 'unit', 'description', 'tractor_registration_number', 'is_active', 'verification_status'];
-    const validTypes = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'other'];
+    const validTypes = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'purification', 'other'];
     const validUnits = ['per_acre', 'per_hour', 'per_day', 'per_job'];
     const updates = {};
     for (const k of allowed) {

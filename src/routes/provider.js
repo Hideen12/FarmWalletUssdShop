@@ -154,7 +154,7 @@ router.get('/dashboard', async (req, res) => {
  * Add a tractor/service to provider's offerings. Requires JWT.
  * Body: { service_type, tractor_registration_number, price_per_unit, unit?, description? }
  */
-const SERVICE_TYPES = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'other'];
+const SERVICE_TYPES = ['tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'purification', 'other'];
 const UNITS = ['per_acre', 'per_hour', 'per_day', 'per_job'];
 
 router.post('/services', express.json(), async (req, res) => {
@@ -166,7 +166,7 @@ router.post('/services', express.json(), async (req, res) => {
 
     const { service_type, tractor_registration_number, price_per_unit, unit, description } = req.body || {};
     if (!service_type || !SERVICE_TYPES.includes(service_type)) {
-      return res.status(400).json({ error: 'Valid service_type required: tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, other' });
+      return res.status(400).json({ error: 'Valid service_type required: tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, purification, other' });
     }
     const regNum = tractor_registration_number ? String(tractor_registration_number).trim() : '';
     if (!regNum) {

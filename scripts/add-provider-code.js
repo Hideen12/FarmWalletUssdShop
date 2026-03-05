@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Add provider_code column to mechanization_providers for USSD shortcode *920*73*XX#
+ * Add provider_code column to mechanization_providers for USSD shortcode *920*72*XX#
  * Run: node scripts/add-provider-code.js
  */
 require('dotenv').config();

@@ -11,7 +11,7 @@ module.exports = (sequelize, DataTypes) => {
       references: { model: 'mechanization_providers', key: 'id' },
     },
     service_type: {
-      type: DataTypes.ENUM('tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'other'),
+      type: DataTypes.ENUM('tractor', 'plowing', 'threshing', 'harvesting', 'seed_drill', 'irrigation', 'sprayer', 'purification', 'other'),
       allowNull: false,
     },
     price_per_unit: {

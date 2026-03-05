@@ -26,6 +26,7 @@ router.get('/', (req, res) => {
 router.use('/admin', require('./admin'));
 router.use('/exhibitor', require('./exhibitor'));
 router.use('/provider', require('./provider'));
+router.use('/vsla', require('./vsla'));
 
 /**
  * Commission summary - requires ADMIN_API_KEY

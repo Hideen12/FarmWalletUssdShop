@@ -8,8 +8,8 @@ module.exports = (sequelize, DataTypes) => {
     provider_code: {
       type: DataTypes.STRING(5),
       unique: true,
-      allowNull: true,
-      comment: 'USSD extension e.g. 01, 02 for *920*73*01# (direct provider access)',
+      allowNull: false,
+      comment: 'USSD extension e.g. 50, 51 for *920*72*50# — system-generated, not user-editable',
     },
     name: {
       type: DataTypes.STRING(255),

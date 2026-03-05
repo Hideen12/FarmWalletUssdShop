@@ -23,8 +23,17 @@ async function register() {
       await provider.update({ pin_hash: pinHash });
       console.log(`Updated existing provider with PIN`);
     } else {
-      const count = await db.MechanizationProvider.count();
-      const providerCode = String(count + 1).padStart(2, '0');
+      let providerCode;
+      if (db.UssdExtension) {
+        const [rows] = await db.sequelize.query(
+          `SELECT COALESCE(MAX(CAST(extension AS UNSIGNED)), 49) + 1 as next FROM ussd_extensions WHERE CAST(extension AS UNSIGNED) BETWEEN 50 AND 99`
+        );
+        const next = Math.min(Number(rows?.[0]?.next || 50), 99);
+        providerCode = String(next).padStart(2, '0');
+      } else {
+        const count = await db.MechanizationProvider.count();
+        providerCode = String(Math.min(50 + count, 99)).padStart(2, '0');
+      }
       provider = await db.MechanizationProvider.create({
         name: 'Demo Mechanization Provider',
         phone: phoneNorm,
@@ -34,6 +43,12 @@ async function register() {
         is_active: true,
         pin_hash: await pinService.hashPin(pin),
       });
+      if (db.UssdExtension) {
+        await db.UssdExtension.findOrCreate({
+          where: { extension: providerCode },
+          defaults: { entityType: 'provider', entityRef: String(provider.id) },
+        });
+      }
       await db.MechanizationService.create({
         provider_id: provider.id,
         service_type: 'tractor',
@@ -55,7 +70,7 @@ PIN:      ${pin}
 Name:     ${provider.name}
 Region:   ${provider.region}
 Code:     ${provider.provider_code || '-'}
-Shortcode: *920*73*${provider.provider_code || 'XX'}# (direct USSD access)
+Shortcode: *920*72*${provider.provider_code || 'XX'}# (direct USSD access)
 `);
     process.exit(0);
   } catch (err) {

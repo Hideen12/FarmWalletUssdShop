@@ -1,8 +1,8 @@
 # FarmWallet Rice API Documentation
 
-**Version:** 1.7  
+**Version:** 1.9  
 **Base URL:** `http://your-domain:3000` or `https://your-domain:443` (HTTPS on 3443, mapped to 443)  
-**Last updated:** March 3, 2025
+**Last updated:** March 5, 2025
 
 ---
 
@@ -12,23 +12,25 @@
 2. [Quick Reference](#quick-reference)
 3. [Authentication](#authentication)
 4. [Environment Variables](#environment-variables)
-5. [Public Endpoints](#public-endpoints)
-6. [USSD Endpoint](#ussd-endpoint)
-7. [Exhibitor API (Shop Owner)](#exhibitor-api-shop-owner)
-8. [Provider API](#provider-api-mechanization-service-provider-dashboard)
-9. [Admin API](#admin-api)
-10. [Mechanization Services API](#mechanization-services-api)
-11. [Paystack Webhook](#paystack-webhook)
-12. [Error Responses](#error-responses)
-13. [Data Models](#data-models)
-14. [Web Dashboards](#web-dashboards)
-15. [Scripts](#scripts)
+5. [Strong SSL/TLS Configuration](#strong-ssltls-configuration)
+6. [Public Endpoints](#public-endpoints)
+7. [USSD Endpoint](#ussd-endpoint)
+8. [Exhibitor API (Shop Owner)](#exhibitor-api-shop-owner)
+9. [Provider API](#provider-api-mechanization-service-provider-dashboard)
+10. [Admin API](#admin-api)
+11. [Mechanization Services API](#mechanization-services-api)
+12. [VSLA API](#vsla-api)
+13. [Paystack Webhook](#paystack-webhook)
+14. [Error Responses](#error-responses)
+15. [Data Models](#data-models)
+16. [Web Dashboards](#web-dashboards) — see also [FRONTEND_API.md](FRONTEND_API.md) for frontend integration
+17. [Scripts](#scripts)
 
 ---
 
 ## Overview
 
-FarmWallet Rice is a USSD-based rice marketplace for shops in Ghana. Shop owners register with Ghana Card, create shops, and list rice types (with bag sizes 5–100 kg). Consumers browse shops and pay via **Paystack** mobile money (MTN, Vodafone, AirtelTigo). The app also offers **mechanization services** (tractor, plowing, threshing, etc.) — pricing is per acre; farmers enter acres, total = price × acres; they contact providers directly.
+FarmWallet Rice is a USSD-based rice marketplace for shops in Ghana. Shop owners register with Ghana Card, create shops, and list rice types (with bag sizes 5–100 kg). Consumers browse shops and pay via **Paystack** mobile money (MTN, Vodafone, AirtelTigo). The app also offers **mechanization services** (tractor, plowing, threshing, purification, etc.) — pricing is per acre; farmers enter acres, total = price × acres; they contact providers directly.
 
 | Endpoint Type | Auth | Description |
 |---------------|------|-------------|
@@ -86,6 +88,12 @@ CORS is configurable via `CORS_ORIGIN` (comma-separated origins). Rate limits: A
 | GET | `/api/admin/mechanization/transactions` | JWT or API Key | List mechanization transactions |
 | POST | `/api/admin/mechanization/transactions` | JWT or API Key | Record transaction (10% commission) |
 | GET | `/api/commission` | API Key | Commission summary |
+| GET | `/api/vsla` | — | VSLA API info (configured status) |
+| GET | `/api/vsla/profile?phone=xxx` | API Key | VSLA user profile by phone |
+| GET | `/api/vsla/profile/:phone/groups` | API Key | User's groups (membership or assigned) |
+| GET | `/api/vsla/profile/:phone/savings` | API Key | User's savings contributions per group |
+| GET | `/api/vsla/profile/:phone/visits` | API Key | VBA's upcoming scheduled visits |
+| POST | `/api/vsla/contribute` | API Key | Initiate savings contribution via MoMo |
 | POST | `/api/paystack/webhook` | — | Paystack webhook (charge.success, charge.failed) |
 
 ---
@@ -154,12 +162,69 @@ npm run register-provider
 | `COMMISSION_BANK_NAME` | No | Bank name for commission deposits (default: Absa Bank) |
 | `COMMISSION_BANK_ACCOUNT` | No | Bank account number for commission deposits (default: 0851116494) |
 | `CORS_ORIGIN` | No | Comma-separated allowed origins (e.g. `https://admin.example.com`). Empty = same-origin. |
-| `SSL_CERT_PATH`, `SSL_KEY_PATH`, `SSL_CA_PATH` | No | Paths to SSL cert, key, and CA bundle for HTTPS. Default: `/app/ssl/server.crt`, etc. |
+| `SSL_CERT_PATH`, `SSL_KEY_PATH`, `SSL_CA_PATH` | No | Paths to SSL cert, key, and CA bundle for HTTPS. Default: `ssl/server.crt`, `ssl/server.key`, `ssl/server.ca-bundle`. |
 | `HTTPS_PORT` | No | HTTPS port inside container (default: 3443). Map 443:3443 in Docker. |
+| `TLS_MIN_VERSION` | No | Minimum TLS version: `TLSv1.2` (default) or `TLSv1.3` for strongest security. |
 | `PAYSTACK_SECRET_KEY` | No* | Paystack secret key for payments. Omit for mock mode. |
 | `PAYSTACK_WEBHOOK_SECRET` | No | Optional: for webhook signature verification |
 | `PAYSTACK_CALLBACK_URL` | No | Optional: base URL (defaults to `MTN_CALLBACK_URL` if set) |
 | `ARKESEL_API_KEY` | No | SMS (Arkesel) for USSD |
+| `VSL_DB_HOST`, `VSL_DB_PORT`, `VSL_DB_NAME`, `VSL_DB_USER`, `VSL_DB_PASSWORD`, `VSL_DB_DIALECT` | No | External VSL/VSLA database. When set, USSD shows "6. VSLA - My Profile" and VSLA API is available. |
+| `VSLA_API_KEY` | No | API key for VSLA endpoints. Falls back to `ADMIN_API_KEY` if not set. |
+
+---
+
+## Strong SSL/TLS Configuration
+
+The backend uses strong TLS by default when HTTPS is enabled. Configure as follows:
+
+### 1. Certificate files
+
+Place your certificates in the `ssl/` directory (or set env paths):
+
+| File | Env variable | Description |
+|------|--------------|-------------|
+| `ssl/server.crt` | `SSL_CERT_PATH` | Server certificate |
+| `ssl/server.key` | `SSL_KEY_PATH` | Private key (keep secret) |
+| `ssl/server.ca-bundle` | `SSL_CA_PATH` | CA/intermediate chain (optional) |
+
+### 2. Certificate sources
+
+- **Let's Encrypt (free):** Use Certbot or acme.sh. Example with Certbot:
+  ```bash
+  certbot certonly --standalone -d your-domain.com
+  # Certs in /etc/letsencrypt/live/your-domain.com/
+  # Symlink or copy fullchain.pem → ssl/server.crt, privkey.pem → ssl/server.key
+  ```
+- **Commercial CA:** Purchase from DigiCert, Sectigo, etc. Use the issued cert and key.
+- **Self-signed (dev only):** `openssl req -x509 -nodes -days 365 -newkey rsa:4096 -keyout ssl/server.key -out ssl/server.crt`
+
+### 3. Strong TLS settings (built-in)
+
+The server enforces:
+
+- **TLS 1.2 minimum** (configurable via `TLS_MIN_VERSION=TLSv1.3` for TLS 1.3 only)
+- **TLS 1.3** supported
+- **Secure ciphers only:** AES-256-GCM, ChaCha20-Poly1305, ECDHE key exchange
+- **Honor cipher order:** Server preference (strongest first)
+
+### 4. Environment variables
+
+```env
+SSL_CERT_PATH=/path/to/server.crt
+SSL_KEY_PATH=/path/to/server.key
+SSL_CA_PATH=/path/to/ca-bundle.crt   # optional
+HTTPS_PORT=3443
+TLS_MIN_VERSION=TLSv1.2   # or TLSv1.3 for strictest
+```
+
+### 5. Reverse proxy (recommended for production)
+
+For production, use **Nginx** or **Caddy** in front of the Node app:
+
+- Terminate SSL at the proxy (handles cert renewal, OCSP stapling)
+- Proxy to Node over HTTP (localhost) or a separate TLS connection
+- Nginx example: `ssl_protocols TLSv1.2 TLSv1.3; ssl_prefer_server_ciphers on; ssl_ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:...`
 
 ---
 
@@ -213,10 +278,18 @@ API root. Base path for all API routes.
 USSD callback for Africastalking or Arkesel. Called when users dial the shortcode.
 
 **Shortcodes:**
-- `*920*72#` — Rice Shops main menu
-- `*920*72*01#` — Direct to Shop 01
-- `*920*73#` — Mechanization main menu (service type selection)
-- `*920*73*01#` — Direct to Mechanization Provider 01
+- `*920*72#` — Main menu
+- `*920*72*01#` — Direct to Shop 01 (rice)
+- `*920*72*50#` — Direct to Mechanization Provider (extensions 50-99)
+- `*920*72*100#` — Direct to VSLA Group (extensions 100+; contribute)
+
+**USSD Extension Ranges (system-generated):**
+
+| Entity | Range | How assigned |
+|--------|-------|---------------|
+| Shops | 01–49 | Uses `shop_id` when shop is created |
+| Providers | 50–99 | Auto-assigned on create; not user-editable |
+| VSLA Groups | 100+ | Assigned by `add-ussd-extensions` script |
 
 **Note:** `GET /ussd` returns `405 Method Not Allowed` with usage instructions.
 
@@ -264,11 +337,12 @@ sessionId=abc123&phoneNumber=233555227753&text=1&serviceCode=*920*72#
 | 3 | Shop Owner — Manage My Shop (PIN, add rice: type → bag size → qty → price) |
 | 4 | Mechanization Services (select type → select provider → enter acres → see total & contact) |
 | 5 | Share your info (name, region, interest, farm size — no registration) |
+| 6 | VSLA - My Profile *(only when VSL DB configured)* — Look up user by phone; shows name, type, status |
 | 0 | Exit |
 
 **Rice:** Bag sizes 5, 25, 50, 100 kg. Shop owners choose size when adding inventory.
 
-**Mechanization:** Per-acre pricing. Farmer enters acres; total = price × acres. Example: 5 acres × GHS 250/acre = GHS 1,250. Services may include tractor registration number (shown in USSD as "Reg: XXX"). Each provider has a unique shortcode extension (e.g. Provider 01 → `*920*73*01#`) for direct access.
+**Mechanization:** Per-acre pricing. Farmer enters acres; total = price × acres. Example: 5 acres × GHS 250/acre = GHS 1,250. Services may include tractor registration number (shown in USSD as "Reg: XXX"). Each provider has a unique extension under *920*72# (e.g. Provider → `*920*72*50#`).
 
 #### USSD Session Persistence & Resume
 
@@ -548,7 +622,7 @@ Add a tractor or equipment service to the provider's offerings. Requires JWT.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| service_type | string | Yes | One of: tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, other |
+| service_type | string | Yes | One of: tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, purification, other |
 | tractor_registration_number | string | Yes | Official registration number (for tracking earnings and commission) |
 | price_per_unit | number | Yes | Price in GHS (≥0) |
 | unit | string | No | per_acre (default), per_hour, per_day, or per_job |
@@ -1101,7 +1175,7 @@ Commission summary. **Requires ADMIN_API_KEY** (set in env). Use `X-Api-Key` hea
 
 ## Mechanization Services API
 
-Farm equipment services (tractor, plowing, threshing, etc.). Users browse via USSD option 4. **Pricing is per acre** — farmer enters acres, total = price × acres. Services may include **tractor registration number** (official equipment ID). Admins manage providers and services.
+Farm equipment services (tractor, plowing, threshing, purification, etc.). Users browse via USSD option 4. **Pricing is per acre** — farmer enters acres, total = price × acres. Services may include **tractor registration number** (official equipment ID). Provider USSD extensions (50–99) are **system-generated** on create. Admins manage providers and services.
 
 ### GET /api/admin/mechanization/providers
 
@@ -1149,7 +1223,12 @@ Create provider.
 | momo_number | string | No | MoMo number for payments |
 | region | string | No | Area served (e.g. Northern, Ashanti) |
 
-**Success Response (201):** Created provider object
+**Note:** `provider_code` (USSD extension) is **system-generated** automatically (50–99). Not accepted in request body.
+
+**Success Response (201):** Created provider object (includes `provider_code` — system-generated USSD extension)
+
+**Error Responses:**
+- `400` — Name and phone required
 
 ### GET /api/admin/mechanization/providers/:id
 
@@ -1164,7 +1243,7 @@ Provider details with all services (active and inactive). Includes `tractor_regi
 
 Update provider. Only provided fields are updated.
 
-**Request Body:** `{ name?, phone?, momo_number?, region?, is_active? }`
+**Request Body:** `{ name?, phone?, momo_number?, region?, is_active? }` — `provider_code` is system-generated and not editable.
 
 **Success Response (200):** Updated provider object
 
@@ -1179,7 +1258,7 @@ Add service to a provider.
 
 | Field | Values | Description |
 |-------|--------|-------------|
-| service_type | tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, other | Required |
+| service_type | tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, purification, other | Required |
 | price_per_unit | number | Price in GHS (required) |
 | unit | per_acre, per_hour, per_day, per_job | Default: per_acre. For per_acre, USSD asks farmer for acres; total = price × acres |
 | description | string | Optional |
@@ -1221,9 +1300,143 @@ Record a completed tractor service. FarmWallet takes 10% commission (configurabl
 
 ---
 
+## VSLA API
+
+The VSLA (Village Savings and Loan Association) API reads from the external VSL database when `VSL_DB_*` is configured. All endpoints except `GET /api/vsla` require an API key via `X-Api-Key` header or `?api_key=xxx` (dev only). Use `ADMIN_API_KEY` or `VSLA_API_KEY`.
+
+### GET /api/vsla
+
+Returns VSLA API status and available endpoints. No auth required.
+
+**Response (configured):**
+```json
+{
+  "vsla": true,
+  "configured": true,
+  "endpoints": [
+    "GET /api/vsla/profile?phone=xxx",
+    "GET /api/vsla/profile/:phone/groups",
+    "GET /api/vsla/profile/:phone/savings",
+    "GET /api/vsla/profile/:phone/visits",
+    "POST /api/vsla/contribute"
+  ]
+}
+```
+
+### GET /api/vsla/profile
+
+Look up user by phone number.
+
+**Query:** `phone` (required) — e.g. `0555227753` or `233555227753`
+
+**Success (200):**
+```json
+{
+  "id": "uuid",
+  "fullname": "John Doe",
+  "userType": "farmer",
+  "status": "approved",
+  "phoneNumber": "233555227753"
+}
+```
+
+**Errors:** 400 (missing phone), 404 (user not found), 503 (VSLA DB not configured)
+
+### GET /api/vsla/profile/:phone/groups
+
+Returns groups for the user. For farmers/vsla_leader/input_dealer: membership groups. For VBA: assigned groups.
+
+**Success (200):**
+```json
+{
+  "type": "membership",
+  "groups": [
+    { "id": "uuid", "name": "Group A", "isActive": true }
+  ]
+}
+```
+
+### GET /api/vsla/profile/:phone/savings
+
+Returns total confirmed savings contributions per group.
+
+**Success (200):**
+```json
+{
+  "savings": [
+    { "groupId": "uuid", "groupName": "Group A", "total": "150.00" }
+  ]
+}
+```
+
+### GET /api/vsla/profile/:phone/visits
+
+Returns upcoming scheduled visits. VBA users only; others get empty array.
+
+**Success (200):**
+```json
+{
+  "visits": [
+    {
+      "id": "uuid",
+      "scheduleCode": "V001",
+      "groupId": "uuid",
+      "farmerId": "uuid",
+      "typeOfVisit": "deposit",
+      "scheduledAt": "2025-03-10",
+      "scheduledTime": "10:00:00",
+      "status": "scheduled"
+    }
+  ]
+}
+```
+
+### POST /api/vsla/contribute
+
+Initiate a savings contribution via MoMo (Paystack). Creates a pending `SavingsContribution` in the VSL database and sends a Paystack charge to the user's phone. On `charge.success` webhook, the contribution is confirmed and the group's `GroupWallet.mainBalance` is updated.
+
+**Body:**
+```json
+{
+  "phone": "0555227753",
+  "groupId": "uuid",
+  "amount": 10.50,
+  "momoProvider": "mtn",
+  "recordedBy": "uuid"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| phone | string | Yes | Payer phone |
+| groupId | string | Yes | VSLA group UUID |
+| amount | number | Yes | Amount in GHS (min 0.10) |
+| momoProvider | string | No | mtn, vodafone, airteltigo (default: mtn) |
+| recordedBy | string | No | VBA/user ID who recorded |
+
+**Success (200):**
+```json
+{
+  "success": true,
+  "contributionId": "uuid",
+  "reference": "SAV-1731234567890-abc123",
+  "status": "PENDING",
+  "message": "MoMo prompt sent. Complete payment on your phone."
+}
+```
+
+**Errors:** 400 (invalid/missing params), 404 (user not found), 503 (VSLA DB not configured)
+
+---
+
 ## Paystack Webhook
 
-The Paystack webhook receives payment events. **Do not call manually.** Configure the webhook URL in your [Paystack Dashboard](https://dashboard.paystack.co/#/settings/developer) → Settings → API Keys & Webhooks.
+The Paystack webhook receives payment events. It handles:
+
+- **Rice sales** (`SALE-*` reference): Marks sale completed, initiates transfer to exhibitor
+- **VSLA contributions** (`SAV-*` reference): Marks contribution confirmed, increments `GroupWallet.mainBalance`
+
+**Do not call manually.** Configure the webhook URL in your [Paystack Dashboard](https://dashboard.paystack.co/#/settings/developer) → Settings → API Keys & Webhooks.
 
 ### POST /api/paystack/webhook
 
@@ -1375,7 +1588,7 @@ Rice is sold in bags of different sizes: **5 kg**, **25 kg**, **50 kg**, or **10
 | momo_number | string | MoMo for payments (optional) |
 | region | string | Area served (e.g. Northern, Ashanti) |
 | is_active | boolean | Active status |
-| provider_code | string | USSD extension (e.g. 01, 02) for *920*73*01# direct access |
+| provider_code | string | **Required.** USSD extension (e.g. 50, 51) for *920*72*50# — system-generated, not user-editable |
 | pin_hash | string | Hashed 4-digit PIN for dashboard login (optional) |
 
 ### MechanizationService
@@ -1384,7 +1597,7 @@ Rice is sold in bags of different sizes: **5 kg**, **25 kg**, **50 kg**, or **10
 |-------|------|-------------|
 | id | integer | Primary key |
 | provider_id | integer | MechanizationProvider ID |
-| service_type | enum | tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, other |
+| service_type | enum | tractor, plowing, threshing, harvesting, seed_drill, irrigation, sprayer, purification, other |
 | price_per_unit | decimal | Price (GHS) |
 | unit | enum | per_acre (farmer enters acres; total = price × acres), per_hour, per_day, per_job |
 | description | string | Optional description |
@@ -1414,11 +1627,14 @@ Rice is sold in bags of different sizes: **5 kg**, **25 kg**, **50 kg**, or **10
 - `seed_drill` — Seed Drill
 - `irrigation` — Irrigation
 - `sprayer` — Sprayer
+- `purification` — Purification (grain/seed cleaning equipment)
 - `other` — Other
 
 ---
 
 ## Web Dashboards
+
+**Frontend developer guide:** See [FRONTEND_API.md](FRONTEND_API.md) for authentication, endpoints, request/response examples, and integration details.
 
 | URL | Description | Auth |
 |-----|-------------|------|
@@ -1426,11 +1642,15 @@ Rice is sold in bags of different sizes: **5 kg**, **25 kg**, **50 kg**, or **10
 | `/provider` | Mechanization provider dashboard (login with phone + PIN). View services, add tractors, see transactions and earnings. | JWT via cookie |
 | `/admin` | Admin dashboard: shops, products, mechanization, commission, admins | Phone + password login (JWT) |
 
+**Base URL:** `http://localhost:3000` (local) or `https://your-domain.com` (production). Dashboards can override via Settings → API Base URL (`localStorage.apiBaseUrl`).
+
 **Provider dashboard:** PIN must be set via `npm run register-provider` (or `node scripts/register-provider.js [phone] [pin]`). Default: phone=0244111001, pin=1234.
 
 **Admin dashboard Settings:** API Base URL and optional Admin API Key can be configured in Settings (stored in `localStorage`). Use when the admin UI is served from a different origin than the API.
 
 **Shop dashboard:** PIN must be set via USSD "Manage My Shop" (option 3) before first login, or use `npm run register-exhibitor` (or `node scripts/register-exhibitor.js [phone] [pin]`) to create/update a shop with a PIN for testing. **Settings:** API Base URL can be configured if the dashboard is served from a different origin.
+
+**USSD shortcodes (display in UI):** *920*72# (main), *920*72*{shop_id}# (shop), *920*72*{provider_code}# (provider).
 
 ---
 
@@ -1450,6 +1670,9 @@ Rice is sold in bags of different sizes: **5 kg**, **25 kg**, **50 kg**, or **10
 | `npm run add-provider-name-to-transactions` | Add provider_name (business name) column to mechanization_transactions |
 | `npm run register-exhibitor` | Register shop with PIN for dashboard login. Usage: `npm run register-exhibitor` or `node scripts/register-exhibitor.js 0555227753 1234` (phone, pin). Creates or updates shop. |
 | `npm run add-provider-pin-hash` | Add pin_hash column to mechanization_providers (run once before provider dashboard login) |
-| `npm run add-provider-code` | Add provider_code column for USSD shortcode *920*73*XX# (run once) |
+| `npm run add-purification-service` | Add 'purification' to mechanization_services.service_type ENUM (run once) |
+| `npm run add-provider-code` | Add provider_code column for USSD shortcode *920*72*XX# (run once) |
+| `npm run require-provider-code` | Make provider_code required (NOT NULL); backfill any nulls with system-generated codes |
+| `npm run add-ussd-extensions` | Create ussd_extensions table; register shops (01-49), providers (50-99), groups (100+) |
 | `npm run add-ussd-sessions` | Create `ussd_sessions` table for persistent USSD session storage. Enables resume after telco timeout. |
 | `npm run register-provider` | Register mechanization provider with PIN for dashboard login. Usage: `npm run register-provider` or `node scripts/register-provider.js 0244111001 1234` (phone, pin). Creates or updates provider. |

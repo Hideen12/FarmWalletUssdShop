@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 module.exports = {
+  // Primary: FarmWallet (exhibitors, sales, mechanization)
   development: {
     username: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
@@ -33,5 +34,17 @@ module.exports = {
       acquire: 20000,
       idle: 5000,
     },
+  },
+
+  // Secondary: VSL/VSLA external database (read-only or VSLA operations)
+  vsl: {
+    username: process.env.VSL_DB_USER,
+    password: process.env.VSL_DB_PASSWORD,
+    database: process.env.VSL_DB_NAME,
+    host: process.env.VSL_DB_HOST,
+    port: process.env.VSL_DB_PORT || 3306,
+    dialect: process.env.VSL_DB_DIALECT || 'mysql',
+    logging: process.env.NODE_ENV === 'development' ? false : false,
+    pool: { max: 3, min: 0, acquire: 15000, idle: 5000 },
   },
 };

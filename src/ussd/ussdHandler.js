@@ -1,4 +1,7 @@
+const { Op } = require('sequelize');
+const { fn, col } = require('sequelize');
 const db = require('../models');
+const vslDb = require('../models/vsl');
 const smsService = require('../services/smsService');
 const paystackService = require('../services/paystackService');
 const pinService = require('../services/pinService');
@@ -26,29 +29,59 @@ const RICE_KEYS = ['perfumed', 'brown', 'parboiled', 'jasmine', 'basmati', 'othe
 const BAG_SIZES = { 1: 5, 2: 25, 3: 50, 4: 100 };
 const BAG_SIZE_OPTIONS = '1. 5 kg\n2. 25 kg\n3. 50 kg\n4. 100 kg';
 
-const MAIN_MENU = `FarmWallet Rice Shops
+function getMainMenu() {
+  const base = `FarmWallet Rice Shops
 
 1. Register as Shop (Ghana Card)
 2. Browse Shops & Buy Rice
 3. Shop Owner - Manage My Shop
 4. Mechanization Services
-5. Share your info
-0. Exit`;
+5. Share your info`;
+  const vsla = vslDb.isConfigured() ? '\n6. VSLA - My Profile' : '';
+  return base + vsla + '\n0. Exit';
+}
 
 const REGIONS = ['Northern', 'Ashanti', 'Volta', 'Greater Accra', 'Eastern', 'Western', 'Upper East', 'Upper West', 'Other'];
 const REGION_OPTIONS = REGIONS.map((r, i) => `${i + 1}. ${r}`).join('\n');
 
 const MECH_SERVICE_TYPES = {
   1: 'tractor', 2: 'plowing', 3: 'threshing', 4: 'harvesting',
-  5: 'seed_drill', 6: 'irrigation', 7: 'sprayer', 8: 'other',
+  5: 'seed_drill', 6: 'irrigation', 7: 'sprayer', 8: 'purification', 9: 'other',
 };
 const MECH_SERVICE_LABELS = {
   tractor: 'Tractor', plowing: 'Plowing', threshing: 'Threshing',
   harvesting: 'Harvesting', seed_drill: 'Seed Drill', irrigation: 'Irrigation',
-  sprayer: 'Sprayer', other: 'Other',
+  sprayer: 'Sprayer', purification: 'Purification', other: 'Other',
 };
 const MECH_UNIT_LABELS = { per_acre: ' per acre', per_hour: '/hr', per_day: '/day', per_job: '/job' };
 
+function normalizePhoneForVsl(phone) {
+  const raw = String(phone || '').replace(/\D/g, '');
+  if (raw.startsWith('233')) return raw;
+  return raw.length >= 9 ? '233' + raw.slice(-9) : raw;
+}
+
+async function vslDbLookupUser(phoneNumber) {
+  if (!vslDb.isConfigured() || !vslDb.User) return null;
+  try {
+    const phone = normalizePhoneForVsl(phoneNumber);
+    const localPhone = phone.startsWith('233') ? '0' + phone.slice(3) : phone;
+    const user = await vslDb.User.findOne({
+      where: {
+        [Op.or]: [
+          { phoneNumber: phone },
+          { phoneNumber: localPhone },
+        ],
+        isDeleted: false,
+      },
+      attributes: ['id', 'fullname', 'userType', 'status', 'ghanaCardNumber'],
+    });
+    return user;
+  } catch (err) {
+    console.warn('VSL lookup error:', err.message);
+    return null;
+  }
+}
 
 async function handleUSSD(req, res) {
   let sessionId, phoneNumber, text, newSession, provider, serviceCode;
@@ -125,34 +158,60 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
   }
   session = session || { step: 'menu', data: {} };
   const isShortcode = /^\*\d+\*\d+/.test(serviceCode || '');
-  const channel = getUssdChannel(serviceCode); // 72=rice, 73=mechanization
+  const channel = getUssdChannel(serviceCode);
   const extensionFromCode = getUssdExtension(serviceCode);
   const extension = parts.length === 1 && /^\d{2,5}$/.test(parts[0]) ? parts[0] : extensionFromCode;
 
-  if (newSession) {
-    if (channel === '73') {
-      if (extension && /^\d{2}$/.test(extension)) {
-        const providerCode = extension;
+  // All extensions under *920*72# - lookup in registry (72, 73, 74 treated same for backward compat)
+  if (newSession && (channel === '72' || channel === '73' || channel === '74') && extension && /^\d{2,5}$/.test(extension)) {
+    const extRec = await db.UssdExtension?.findOne({ where: { extension } });
+    if (extRec) {
+      if (extRec.entityType === 'shop') {
+        const exhibitor = await db.Exhibitor.findOne({
+          where: { shop_id: extRec.entityRef, is_active: true },
+        });
+        if (exhibitor) {
+          sessionStore.set(sessionId, phoneNumber, { step: 'exhibitor_shop', data: { shopId: exhibitor.shop_id } });
+          return showExhibitorShop(sessionId, phoneNumber, exhibitor, []);
+        }
+      }
+      if (extRec.entityType === 'provider') {
         const mechProvider = await db.MechanizationProvider.findOne({
-          where: { provider_code: providerCode, is_active: true },
+          where: { id: extRec.entityRef, is_active: true },
           include: [{ model: db.MechanizationService, where: { is_active: true }, required: true }],
         });
         if (mechProvider) {
-          sessionStore.set(sessionId, phoneNumber, { step: 'mechanization_provider_direct', data: { providerCode, providerId: mechProvider.id } });
+          sessionStore.set(sessionId, phoneNumber, {
+            step: 'mechanization_provider_direct',
+            data: { providerCode: mechProvider.provider_code || extRec.extension, providerId: mechProvider.id },
+          });
           return showProviderDirectServices(sessionId, phoneNumber, mechProvider);
         }
       }
-      sessionStore.set(sessionId, phoneNumber, { step: 'mechanization_service_type', data: {} });
-      return CON('FarmWallet Mechanization\n\nSelect service:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Other\n0. Exit');
-    }
-    if (channel !== '73' && extension && /^\d{2}$/.test(extension)) {
-      const shopId = extension;
-      const exhibitor = await db.Exhibitor.findOne({
-        where: { shop_id: shopId, is_active: true },
-      });
-      if (exhibitor) {
-        sessionStore.set(sessionId, phoneNumber, { step: 'exhibitor_shop', data: { shopId } });
-        return showExhibitorShop(sessionId, phoneNumber, exhibitor, []);
+      if (extRec.entityType === 'group' && vslDb.isConfigured()) {
+        const group = await vslDb.Group.findByPk(extRec.entityRef);
+        if (group && group.isActive) {
+          const user = await vslDbLookupUser(phoneNumber);
+          if (!user) {
+            return END('Phone not found in VSLA system.\nRegister with your VSL/VBA first.');
+          }
+          const membership = await vslDb.GroupMembers.findOne({
+            where: { groupId: group.id, userId: user.id },
+          });
+          if (!membership) {
+            return END(`You are not a member of ${group.name}.\n\nFarmWallet`);
+          }
+          sessionStore.set(sessionId, phoneNumber, {
+            step: 'vsla_contribute_amount',
+            data: {
+              vslaUserId: user.id,
+              vslaUser: { fullname: user.fullname, userType: user.userType, status: user.status },
+              contributeGroupId: group.id,
+              contributeGroupName: group.name,
+            },
+          });
+          return CON(`VSLA - ${group.name}\n\nMake Contribution\n\nEnter amount (GHS):`);
+        }
       }
     }
   }
@@ -162,7 +221,7 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
       return CON('Session timed out.\nContinue where you left off?\n1. Yes\n2. No - Start over');
     }
     sessionStore.set(sessionId, phoneNumber, { step: isShortcode ? 'main_menu' : 'menu', data: {} });
-    return CON(isShortcode ? MAIN_MENU : MAIN_MENU);
+    return CON(getMainMenu());
   }
 
   if (session.step === 'resume_prompt') {
@@ -190,7 +249,7 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
     if (choice === '2') {
       sessionStore.clearResumable(phoneNumber);
       sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
-      return CON(MAIN_MENU);
+      return CON(getMainMenu());
     }
     return CON('Session timed out.\nContinue where you left off?\n1. Yes\n2. No - Start over');
   }
@@ -228,13 +287,24 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
     }
     if (choice === '4') {
       sessionStore.set(sessionId, phoneNumber, { step: 'mechanization_service_type', data: {} });
-      return CON('Mechanization Services\n\nSelect service:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Other\n0. Back');
+      return CON('Mechanization Services\n\nSelect service:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Purification\n9. Other\n0. Back');
     }
     if (choice === '5') {
       sessionStore.set(sessionId, phoneNumber, { step: 'data_submit_name', data: {} });
       return CON('Share your info\n\nNo registration needed.\n\nEnter your name:');
     }
-    return CON('Invalid option.\n\n' + MAIN_MENU);
+    if (choice === '6' && vslDb.isConfigured()) {
+      const user = await vslDbLookupUser(phoneNumber);
+      if (!user) {
+        return END('Phone not found in VSLA system.\nRegister with your VSL/VBA first.');
+      }
+      session.data.vslaUserId = user.id;
+      session.data.vslaUser = { fullname: user.fullname, userType: user.userType, status: user.status };
+      session.step = 'vsla_menu';
+      sessionStore.set(sessionId, phoneNumber, session);
+      return showVslaMenu(user);
+    }
+    return CON('Invalid option.\n\n' + getMainMenu());
   }
 
   if (session.step === 'data_submit_name') {
@@ -317,10 +387,10 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
   if (session.step === 'mechanization_service_type') {
     if (choice === '0') {
       sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
-      return CON(MAIN_MENU);
+      return CON(getMainMenu());
     }
     const svcType = MECH_SERVICE_TYPES[choice];
-    if (!svcType) return CON('Select 1-8:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Other\n0. Back');
+    if (!svcType) return CON('Select 1-9:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Purification\n9. Other\n0. Back');
     session.data.mech_service_type = svcType;
     session.step = 'mechanization_providers';
     sessionStore.set(sessionId, phoneNumber, session);
@@ -330,7 +400,7 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
   if (session.step === 'mechanization_providers') {
     if (choice === '0') {
       sessionStore.set(sessionId, phoneNumber, { step: 'mechanization_service_type', data: {} });
-      return CON('Mechanization Services\n\nSelect service:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Other\n0. Back');
+      return CON('Mechanization Services\n\nSelect service:\n1. Tractor\n2. Plowing\n3. Threshing\n4. Harvesting\n5. Seed Drill\n6. Irrigation\n7. Sprayer\n8. Purification\n9. Other\n0. Back');
     }
     const services = await db.MechanizationService.findAll({
       where: { service_type: session.data.mech_service_type, is_active: true, verification_status: 'verified' },
@@ -370,7 +440,7 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
   if (session.step === 'select_shop' || (parts.length === 2 && parts[0] === '2')) {
     if (choice === '0') {
       sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
-      return CON(MAIN_MENU);
+      return CON(getMainMenu());
     }
     const exhibitors = await db.Exhibitor.findAll({
       where: { is_active: true },
@@ -528,7 +598,7 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
   if (session.step === 'exhibitor_manage_menu') {
     if (choice === '2') {
       sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
-      return CON(MAIN_MENU);
+      return CON(getMainMenu());
     }
     if (choice === '1') {
       session.data.fromManage = true;
@@ -599,6 +669,16 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
       exhibition_day: session.data.exhibition_day,
       pin_hash: session.data.pin_hash,
     });
+    if (db.UssdExtension) {
+      try {
+        await db.UssdExtension.findOrCreate({
+          where: { extension: exhibitor.shop_id },
+          defaults: { entityType: 'shop', entityRef: exhibitor.shop_id },
+        });
+      } catch (e) {
+        console.warn('UssdExtension register:', e.message);
+      }
+    }
     await db.ExhibitorInventory.create({
       exhibitor_id: exhibitor.id,
       rice_type: session.data.rice_type,
@@ -638,8 +718,236 @@ async function processUSSD(sessionId, phoneNumber, text, newSession, serviceCode
     return CON('Select 1 or 2:\n1. Yes - Add more rice\n2. No - Finish');
   }
 
+  if (session.step === 'vsla_menu') {
+    if (choice === '0') {
+      sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
+      return CON(getMainMenu());
+    }
+    if (choice === '1') {
+      const u = session.data.vslaUser || {};
+      sessionStore.clear(sessionId, phoneNumber);
+      return END(`VSLA Profile\n\nName: ${u.fullname || '-'}\nType: ${u.userType || '-'}\nStatus: ${u.status || '-'}\n\nFarmWallet`);
+    }
+    if (choice === '2') {
+      session.step = 'vsla_groups';
+      sessionStore.set(sessionId, phoneNumber, session);
+      return await showVslaGroups(sessionId, phoneNumber, session, session.data.vslaUser?.userType);
+    }
+    if (choice === '3') {
+      if (session.data.vslaUser?.userType === 'vba') {
+        session.step = 'vsla_visits';
+        sessionStore.set(sessionId, phoneNumber, session);
+        return await showVslaVisits(sessionId, phoneNumber, session);
+      }
+      session.step = 'vsla_savings';
+      sessionStore.set(sessionId, phoneNumber, session);
+      return await showVslaSavings(sessionId, phoneNumber, session);
+    }
+    if (choice === '4' && session.data.vslaUser?.userType !== 'vba') {
+      session.step = 'vsla_contribute_select_group';
+      sessionStore.set(sessionId, phoneNumber, session);
+      return await showVslaContributeGroups(sessionId, phoneNumber, session);
+    }
+    return CON(showVslaMenu(session.data.vslaUser) + '\n\nInvalid option.');
+  }
+
+  if (['vsla_groups', 'vsla_savings', 'vsla_visits', 'vsla_contribute_select_group', 'vsla_contribute_amount', 'vsla_contribute_provider'].includes(session.step)) {
+    if (choice === '0') {
+      const prev = { vsla_contribute_provider: 'vsla_contribute_amount', vsla_contribute_amount: 'vsla_contribute_select_group', vsla_contribute_select_group: 'vsla_menu' };
+      session.step = prev[session.step] || 'vsla_menu';
+      sessionStore.set(sessionId, phoneNumber, session);
+      if (session.step === 'vsla_menu') return showVslaMenu(session.data.vslaUser);
+      if (session.step === 'vsla_contribute_select_group') return await showVslaContributeGroups(sessionId, phoneNumber, session);
+      if (session.step === 'vsla_contribute_amount') {
+        const groupName = session.data.contributeGroupName || 'group';
+        return CON(`Make Contribution\n${groupName}\n\nEnter amount (GHS):`);
+      }
+      return showVslaMenu(session.data.vslaUser);
+    }
+  }
+
+  if (session.step === 'vsla_contribute_select_group') {
+    const memberships = await vslDb.GroupMembers.findAll({
+      where: { userId: session.data.vslaUserId },
+      include: [{ model: vslDb.Group, where: { isActive: true }, attributes: ['id', 'name'], required: true }],
+    });
+    const idx = parseInt(choice, 10);
+    if (isNaN(idx) || idx < 1 || idx > memberships.length) return await showVslaContributeGroups(sessionId, phoneNumber, session);
+    const m = memberships[idx - 1];
+    session.data.contributeGroupId = m.Group?.id;
+    session.data.contributeGroupName = m.Group?.name;
+    session.step = 'vsla_contribute_amount';
+    sessionStore.set(sessionId, phoneNumber, session);
+    return CON('Make Contribution\n\nEnter amount (GHS):');
+  }
+
+  if (session.step === 'vsla_contribute_amount') {
+    const amt = parseFloat(choice);
+    if (isNaN(amt) || amt < 0.1) return CON('Enter valid amount (min GHS 0.10):');
+    session.data.contributeAmount = amt;
+    session.step = 'vsla_contribute_provider';
+    sessionStore.set(sessionId, phoneNumber, session);
+    const groupName = session.data.contributeGroupName || 'group';
+    return CON(`VSLA Contribution\n${groupName}\nAmount: GHS ${amt.toFixed(2)}\n\nPay with Mobile Money\nSelect provider:\n1. MTN\n2. Vodafone\n3. AirtelTigo\n0. Cancel`);
+  }
+
+  if (session.step === 'vsla_contribute_provider') {
+    const providerMap = { 1: 'mtn', 2: 'vodafone', 3: 'airteltigo' };
+    const momoProvider = providerMap[choice];
+    if (!momoProvider) {
+      if (choice === '0') {
+        session.step = 'vsla_contribute_amount';
+        sessionStore.set(sessionId, phoneNumber, session);
+        return CON('Make Contribution\n\nEnter amount (GHS):');
+      }
+      return CON(`GHS ${session.data.contributeAmount.toFixed(2)} to ${session.data.contributeGroupName}\n\nSelect provider:\n1. MTN\n2. Vodafone\n3. AirtelTigo\n0. Cancel`);
+    }
+    const vslaContributionService = require('../services/vslaContributionService');
+    const result = await vslaContributionService.initiateContribution(
+      phoneNumber,
+      session.data.vslaUserId,
+      session.data.contributeGroupId,
+      session.data.contributeAmount,
+      momoProvider
+    );
+    sessionStore.clear(sessionId, phoneNumber);
+    if (!result.success) return END(`Payment failed.\n${result.message}\n\nTry again or use another MoMo wallet.`);
+    const amt = session.data.contributeAmount.toFixed(2);
+    const groupName = session.data.contributeGroupName || 'group';
+    return END(`Contribution confirmed!\nGHS ${amt} to ${groupName}\n\nMoMo prompt sent.\nComplete payment on your phone.\n\nFarmWallet`);
+  }
+
   sessionStore.set(sessionId, phoneNumber, { step: 'main_menu', data: {} });
-  return CON(MAIN_MENU);
+  return CON(getMainMenu());
+}
+
+function showVslaMenu(user) {
+  const isVba = user?.userType === 'vba';
+  let menu = `VSLA - My Profile\n\n1. My Profile\n2. ${isVba ? 'Assigned Groups' : 'My Groups'}`;
+  menu += isVba ? '\n3. Upcoming Visits' : '\n3. My Savings\n4. Make Contribution';
+  menu += '\n0. Back';
+  return menu;
+}
+
+async function showVslaContributeGroups(sessionId, phoneNumber, session) {
+  const userId = session.data.vslaUserId;
+  if (!vslDb.GroupMembers || !vslDb.Group) return END('Groups not available.');
+  try {
+    const memberships = await vslDb.GroupMembers.findAll({
+      where: { userId },
+      include: [{ model: vslDb.Group, where: { isActive: true }, attributes: ['id', 'name'], required: true }],
+    });
+    if (memberships.length === 0) return CON('Make Contribution\n\nNo active groups.\n0. Back');
+    const lines = memberships.slice(0, 8).map((m, i) => `${i + 1}. ${m.Group?.name || 'Group'}`);
+    session.step = 'vsla_contribute_select_group';
+    sessionStore.set(sessionId, phoneNumber, session);
+    return CON(`Make Contribution\n\nSelect group:\n${lines.join('\n')}\n0. Back`);
+  } catch (err) {
+    console.warn('VSL contribute groups error:', err.message);
+    return END('Could not load groups. Try again.');
+  }
+}
+
+async function showVslaGroups(sessionId, phoneNumber, session, userType) {
+  const userId = session.data.vslaUserId;
+  const isVba = userType === 'vba';
+
+  if (isVba && vslDb.VbaGroupAssignment && vslDb.Group) {
+    try {
+      const assignments = await vslDb.VbaGroupAssignment.findAll({
+        where: { vbaId: userId },
+        include: [{ model: vslDb.Group, attributes: ['id', 'name', 'isActive'] }],
+      });
+      if (assignments.length === 0) return CON('Assigned Groups\n\nNo groups assigned.\n0. Back');
+      const lines = assignments.slice(0, 8).map((a, i) => {
+        const g = a.Group || {};
+        return `${i + 1}. ${g.name || 'Group'}`;
+      });
+      session.step = 'vsla_groups';
+      sessionStore.set(sessionId, phoneNumber, session);
+      return CON(`Assigned Groups\n\n${lines.join('\n')}\n0. Back`);
+    } catch (err) {
+      console.warn('VSL VBA groups error:', err.message);
+      return END('Could not load groups. Try again.');
+    }
+  }
+
+  if (!vslDb.GroupMembers || !vslDb.Group) return END('Groups not available.');
+  try {
+    const memberships = await vslDb.GroupMembers.findAll({
+      where: { userId },
+      include: [{ model: vslDb.Group, attributes: ['id', 'name', 'isActive'] }],
+    });
+    if (memberships.length === 0) return CON('My Groups\n\nNo groups found.\n0. Back');
+    const lines = memberships.slice(0, 8).map((m, i) => {
+      const g = m.Group || {};
+      const active = g.isActive ? '' : ' (inactive)';
+      return `${i + 1}. ${g.name || 'Group'}${active}`;
+    });
+    session.step = 'vsla_groups';
+    sessionStore.set(sessionId, phoneNumber, session);
+    return CON(`My Groups\n\n${lines.join('\n')}\n0. Back`);
+  } catch (err) {
+    console.warn('VSL groups error:', err.message);
+    return END('Could not load groups. Try again.');
+  }
+}
+
+async function showVslaSavings(sessionId, phoneNumber, session) {
+  const userId = session.data.vslaUserId;
+  if (!vslDb.SavingsContribution || !vslDb.Group) return END('Savings not available.');
+  try {
+    const rows = await vslDb.SavingsContribution.findAll({
+      where: { userId, status: 'confirmed' },
+      attributes: ['groupId', [fn('SUM', col('amount')), 'total']],
+      group: ['groupId'],
+      raw: true,
+    });
+    if (rows.length === 0) return CON('My Savings\n\nNo contributions yet.\n0. Back');
+    const lines = [];
+    for (const r of rows.slice(0, 6)) {
+      const g = r.groupId ? await vslDb.Group.findByPk(r.groupId, { attributes: ['name'] }) : null;
+      const name = g?.name || 'Group';
+      const total = Number(r.total || 0).toFixed(2);
+      lines.push(`${name}: GHS ${total}`);
+    }
+    session.step = 'vsla_savings';
+    sessionStore.set(sessionId, phoneNumber, session);
+    return CON(`My Savings\n\n${lines.join('\n')}\n0. Back`);
+  } catch (err) {
+    console.warn('VSL savings error:', err.message);
+    return END('Could not load savings. Try again.');
+  }
+}
+
+async function showVslaVisits(sessionId, phoneNumber, session) {
+  const userId = session.data.vslaUserId;
+  if (!vslDb.VbaVisit) return END('Visits not available.');
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const visits = await vslDb.VbaVisit.findAll({
+      where: {
+        vbaId: userId,
+        status: 'scheduled',
+        scheduledAt: { [Op.gte]: today },
+      },
+      order: [['scheduledAt', 'ASC'], ['scheduledTime', 'ASC']],
+      limit: 8,
+    });
+    if (visits.length === 0) return CON('Upcoming Visits\n\nNo scheduled visits.\n0. Back');
+    const lines = visits.map((v, i) => {
+      const d = v.scheduledAt ? new Date(v.scheduledAt).toLocaleDateString() : '-';
+      const t = v.scheduledTime ? String(v.scheduledTime).slice(0, 5) : '';
+      return `${i + 1}. ${d} ${t} - ${v.typeOfVisit || 'visit'}`;
+    });
+    session.step = 'vsla_visits';
+    sessionStore.set(sessionId, phoneNumber, session);
+    return CON(`Upcoming Visits\n\n${lines.join('\n')}\n0. Back`);
+  } catch (err) {
+    console.warn('VSL visits error:', err.message);
+    return END('Could not load visits. Try again.');
+  }
 }
 
 async function showProviderDirectServices(sessionId, phoneNumber, provider) {

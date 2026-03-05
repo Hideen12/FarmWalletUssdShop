@@ -29,6 +29,7 @@ const db = {
   MechanizationTransaction: require('./MechanizationTransaction')(sequelize, Sequelize.DataTypes),
   UssdSession: require('./UssdSession')(sequelize, Sequelize.DataTypes),
   DataSubmission: require('./DataSubmission')(sequelize, Sequelize.DataTypes),
+  UssdExtension: require('./UssdExtension')(sequelize, Sequelize.DataTypes),
 };
 
 db.ExhibitorInventory.belongsTo(db.Exhibitor, { foreignKey: 'exhibitor_id' });
