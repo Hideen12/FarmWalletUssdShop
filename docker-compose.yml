@@ -9,6 +9,7 @@ services:
       PORT: "3000"
       PUBLIC_BASE_URL: "https://ussdapi.farmwallet.org"
       PAYSTACK_CALLBACK_URL: "https://ussdapi.farmwallet.org"
+      CORS_ORIGIN: "https://moonlit-unicorn-8bea72.netlify.app,https://ussdapi.farmwallet.org"
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: farmwallet_ghana_rice
