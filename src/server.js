@@ -1,6 +1,5 @@
 require('dotenv').config();
 const fs = require('fs');
-const https = require('https');
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
@@ -96,49 +95,11 @@ async function connectDB(retries = 5) {
 async function start() {
   await connectDB();
 
-  const certPath = process.env.SSL_CERT_PATH || path.join(__dirname, '..', 'ssl', 'server.crt');
-  const keyPath = process.env.SSL_KEY_PATH || path.join(__dirname, '..', 'ssl', 'server.key');
-  const caPath = process.env.SSL_CA_PATH || path.join(__dirname, '..', 'ssl', 'server.ca-bundle');
-  const httpsPort = parseInt(process.env.HTTPS_PORT || '3443', 10);
-
-  const hasCert = fs.existsSync(certPath) && fs.existsSync(keyPath);
-
-  if (hasCert) {
-    const httpsOptions = {
-      key: fs.readFileSync(keyPath),
-      cert: fs.readFileSync(certPath),
-      // Strong TLS: TLS 1.2+ only, prefer server cipher order, secure ciphers
-      minVersion: process.env.TLS_MIN_VERSION || 'TLSv1.2',
-      maxVersion: 'TLSv1.3',
-      honorCipherOrder: true,
-      ciphers: [
-        'TLS_AES_256_GCM_SHA384',
-        'TLS_CHACHA20_POLY1305_SHA256',
-        'TLS_AES_128_GCM_SHA256',
-        'ECDHE-ECDSA-AES256-GCM-SHA384',
-        'ECDHE-RSA-AES256-GCM-SHA384',
-        'ECDHE-ECDSA-CHACHA20-POLY1305',
-        'ECDHE-RSA-CHACHA20-POLY1305',
-        'ECDHE-ECDSA-AES128-GCM-SHA256',
-        'ECDHE-RSA-AES128-GCM-SHA256',
-      ].join(':'),
-    };
-    if (fs.existsSync(caPath)) {
-      httpsOptions.ca = fs.readFileSync(caPath);
-    }
-    const server = https.createServer(httpsOptions, app);
-    server.listen(httpsPort, () => {
-      console.log(`FarmWallet Rice Shops HTTPS on port ${httpsPort}`);
-    });
-  }
-
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`FarmWallet Rice Shops HTTP on port ${PORT}`);
     const publicBaseUrl = process.env.PUBLIC_BASE_URL
       || (process.env.NODE_ENV === 'production' ? 'https://ussdapi.farmwallet.org' : null);
-    const scheme = hasCert ? 'https' : 'http';
-    const port = hasCert ? httpsPort : PORT;
-    const baseUrl = publicBaseUrl || `${scheme}://localhost:${port}`;
+    const baseUrl = publicBaseUrl || `http://localhost:${PORT}`;
     console.log(`USSD: POST ${baseUrl}/ussd`);
     console.log(`Paystack webhook: POST ${baseUrl}/api/paystack/webhook`);
     console.log(`Shortcode: *920*72# or *920*72*01# for Shop 01`);

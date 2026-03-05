@@ -3,7 +3,6 @@ services:
     build: .
     ports:
       - "3001:3000"
-      - "3444:3443"
     environment:
       NODE_ENV: production
       PORT: "3000"
@@ -15,7 +14,6 @@ services:
       DB_NAME: farmwallet_ghana_rice
       DB_USER: farmwallet
       DB_PASSWORD: farmwallet_secret
-      HTTPS_PORT: "3443"
       # JWT_SECRET required in production (min 32 chars). Override via .env or host env for real deployments.
       JWT_SECRET: ${JWT_SECRET:-farmwallet-docker-dev-secret-change-in-production-32chars}
     # Optional: create .env for overrides (DB credentials, PAYSTACK_SECRET_KEY, ARKESEL_API_KEY, etc.)
