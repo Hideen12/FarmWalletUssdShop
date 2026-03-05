@@ -20,11 +20,8 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# SSL paths (use ssl/ in repo or mount at runtime)
 # HTTPS_PORT: use 3443 in container; map 443:3443 in docker-compose
-ENV SSL_CERT_PATH=/app/ssl/server.crt
-ENV SSL_KEY_PATH=/app/ssl/server.key
-ENV SSL_CA_PATH=/app/ssl/server.ca-bundle
+# SSL paths are resolved by the app defaults or can be set at runtime.
 ENV HTTPS_PORT=3443
 
 # Create non-root user
