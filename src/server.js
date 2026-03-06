@@ -12,6 +12,8 @@ const { helmetMiddleware, apiLimiter, ussdLimiter, loginLimiter } = require('./m
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+// Trust one reverse proxy hop (Nginx -> Node) for correct req.ip / X-Forwarded-* handling
+app.set('trust proxy', 1);
 
 // CORS - parse once, trim spaces, and handle preflight before routes
 const corsOrigins = (process.env.CORS_ORIGIN || '')
