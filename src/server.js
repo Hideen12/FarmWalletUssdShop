@@ -13,11 +13,14 @@ const { helmetMiddleware, apiLimiter, ussdLimiter, loginLimiter } = require('./m
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CORS - cache origin list to avoid parse on every request
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim()).filter(Boolean)
-  : true;
-app.use(cors({ origin: corsOrigins, credentials: true }));
+// CORS - parse once, trim spaces, and handle preflight before routes
+const corsOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const corsConfig = { origin: corsOrigins.length ? corsOrigins : true, credentials: true };
+app.use(cors(corsConfig));
+app.options('*', cors(corsConfig));
 app.use(helmetMiddleware);
 app.use(cookieParser());
 
