@@ -102,6 +102,82 @@ function requireAdmin(req, res, next) {
 router.use(requireAdmin);
 
 /**
+ * POST /api/admin/exhibitors
+ * Create exhibitor (shop) from admin dashboard/API
+ * Body: { ghana_card, name, phone, momo_number?, momo_provider, exhibition_day?, pin?, is_active? }
+ */
+router.post('/exhibitors', express.json(), async (req, res) => {
+  try {
+    const {
+      ghana_card,
+      name,
+      phone,
+      momo_number,
+      momo_provider,
+      exhibition_day = 1,
+      pin,
+      is_active = true,
+    } = req.body || {};
+
+    const phoneNorm = normalizePhone(phone);
+    const momoNorm = normalizePhone(momo_number || phone);
+    const provider = String(momo_provider || '').trim().toLowerCase();
+    const day = Math.max(1, Math.min(3, parseInt(exhibition_day, 10) || 1));
+    const card = String(ghana_card || '').trim();
+    const shopName = String(name || '').trim();
+
+    if (!card || !shopName || !phoneNorm || !momoNorm || !['mtn', 'vodafone', 'airteltigo'].includes(provider)) {
+      return res.status(400).json({
+        error: 'ghana_card, name, phone, momo_number (or phone), and valid momo_provider (mtn|vodafone|airteltigo) are required',
+      });
+    }
+
+    const [maxRow] = await db.sequelize.query(
+      `SELECT COALESCE(MAX(CAST(shop_id AS UNSIGNED)), 0) + 1 AS next FROM exhibitors`
+    );
+    const nextShopId = String(Math.max(1, Number(maxRow?.[0]?.next || 1))).padStart(2, '0');
+
+    let pin_hash = null;
+    if (pin !== undefined && pin !== null && String(pin).trim() !== '') {
+      const pinRaw = String(pin).trim();
+      if (!/^\d{4}$/.test(pinRaw)) {
+        return res.status(400).json({ error: 'PIN must be exactly 4 digits when provided' });
+      }
+      pin_hash = await pinService.hashPin(pinRaw);
+    }
+
+    const exhibitor = await db.Exhibitor.create({
+      shop_id: nextShopId,
+      ghana_card: card,
+      name: shopName,
+      phone: phoneNorm,
+      momo_number: momoNorm,
+      momo_provider: provider,
+      exhibition_day: day,
+      is_active: Boolean(is_active),
+      pin_hash,
+    });
+
+    if (db.UssdExtension) {
+      try {
+        await db.UssdExtension.findOrCreate({
+          where: { extension: exhibitor.shop_id },
+          defaults: { entityType: 'shop', entityRef: exhibitor.shop_id },
+        });
+      } catch (e) {
+        console.warn('UssdExtension register:', e.message);
+      }
+    }
+
+    const out = exhibitor.toJSON();
+    delete out.pin_hash;
+    res.status(201).json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * GET /api/admin/exhibitors
  * List exhibitors with optional filters
  * Query: page, limit, day (exhibition_day), active (true/false), search (name/phone/shop_id)
